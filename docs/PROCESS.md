@@ -23,12 +23,26 @@ O fluxo é: **interrogar → registrar decisões → especificar → fatiar → 
 - `../CONTEXT.md`: glossário aprovado do domínio.
 - `canon.md`: estado atual do plano e decisões vigentes, com histórico superado anotado.
 - `adr/`: uma decisão arquitetural por arquivo.
+- `epicos/`: uma frente durável por arquivo; agrupa sprints rumo a um resultado observável.
 - `agents/`: orientação local para agentes e para o tracker quando ele for escolhido.
 - `_templates/`: modelos próprios desta documentação.
-- `_sprints/{sprint}/`: inputs, ficha e handovers de cada execução.
-- `_index/sprints.md`: catálogo de conveniência; não substitui as fichas.
+- `_sprints/{sprint}/`: ficha da sprint, inputs e handovers de cada execução.
+- `_index/`: catálogos de conveniência (`sprints.md`, `epicos.md`) e `estado.sh`, que deriva o estado. Não substituem as fichas.
 
 Uma decisão aprovada atualiza o canon; um trade-off arquitetural relevante recebe ADR; um termo de domínio aprovado entra no glossário. Handovers apontam para essas fontes em vez de manter cópias. O texto em `canon/chat.md` é contexto histórico bruto, não decisão vigente.
+
+## Épicos, sprints e uma casa por fato
+
+Um **épico** (`epicos/eNN-slug.md`) é a frente durável: guarda o objetivo de produto, o resultado observável e o próprio `status` (`aberto`, `concluido`, `descartado`). Uma **sprint** (`_sprints/sNN-slug/`) é uma execução do fluxo de sete etapas.
+
+Cada fato tem uma casa só:
+
+- a sprint declara a que épico pertence, no `epico:` da sua ficha (`_sprints/{sprint}/CONTEXT.md`);
+- o estado de uma etapa vive no `status:` da ficha da etapa;
+- o estado de uma sprint é **derivado** das fichas das suas etapas; não se declara;
+- a lista de sprints de um épico é **derivada** do `epico:` das fichas de sprint; o épico não a repete.
+
+Ninguém escreve o estado de outro arquivo. Para ver o conjunto, rode `sh docs/_index/estado.sh`.
 
 ## Fichas, estado e etapas não aplicáveis
 
@@ -38,19 +52,32 @@ Estados permitidos: `vazio`, `em-curso`, `fechado` e `nao-aplicavel`. O estado d
 
 Só `01_grilling`, `03_spec` e `04_tickets` podem ser marcadas `nao-aplicavel`, sempre com motivo e com a fonte que substituiu a etapa. As demais etapas não são eliminadas para encurtar o fluxo.
 
+## Abrir um épico
+
+Use um identificador `eNN-slug`:
+
+```sh
+mkdir -p docs/epicos
+cp docs/_templates/epico.md docs/epicos/e01-slug.md
+```
+
+Preencha objetivo, resultado observável, fora de escopo e `status`, e registre o épico em `_index/epicos.md`. As sprints apontam para ele com `epico: e01-slug`; não liste as sprints dentro do épico.
+
 ## Abrir uma sprint
 
-Use um identificador `sNN-slug`. No diretório raiz do EnochDB, crie a árvore a partir do modelo local:
+Use um identificador `sNN-slug`. No diretório raiz do EnochDB, crie a árvore a partir dos modelos locais:
 
 ```sh
 SPRINT=s01-exemplo
+mkdir -p "docs/_sprints/$SPRINT"
+cp docs/_templates/sprint.md "docs/_sprints/$SPRINT/CONTEXT.md"
 for step in 01_grilling 02_domain 03_spec 04_tickets 05_implement 06_review 07_handoff; do
   mkdir -p "docs/_sprints/$SPRINT/$step/inputs" "docs/_sprints/$SPRINT/$step/handovers"
   cp docs/_templates/sprint-CONTEXT.md "docs/_sprints/$SPRINT/$step/CONTEXT.md"
 done
 ```
 
-Edite cada ficha para substituir o identificador, etapa e data; não cole nela o contrato. Registre a sprint em `_index/sprints.md` e coloque o material bruto novo apenas em `01_grilling/inputs/`. Para material que já tem casa, registre o caminho em vez de copiá-lo.
+Preencha a ficha da sprint (identificador, título, `epico:` e data) e cada ficha de etapa (identificador, etapa e data); não cole o contrato nelas. Registre a sprint em `_index/sprints.md` e coloque o material bruto novo apenas em `01_grilling/inputs/`. Para material que já tem casa, registre o caminho em vez de copiá-lo.
 
 ## Tracker e publicação
 
