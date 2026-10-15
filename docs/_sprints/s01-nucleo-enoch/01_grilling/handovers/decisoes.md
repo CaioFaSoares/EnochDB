@@ -1,6 +1,15 @@
 # Decisões do 01_grilling — s01-nucleo-enoch
 
-Estado: **parcial**. O dono ainda não confirmou o conjunto. Fontes lidas: [`../../../../canon.md`](../../../../canon.md), [`../../../../canon/chat.md`](../../../../canon/chat.md), [`../../../../../CONTEXT.md`](../../../../../CONTEXT.md).
+Estado (2026-10-15): **sem pontos abertos, aguardando a leitura e o aceite do dono** (gate do `01_grilling`, `../../../../01_grilling/CONTEXT.md`). A ficha da etapa continua `em-curso` até esse aceite. Fontes lidas: [`../../../../canon.md`](../../../../canon.md), [`../../../../canon/chat.md`](../../../../canon/chat.md), [`../../../../../CONTEXT.md`](../../../../../CONTEXT.md).
+
+**Iniciativas do agente que o dono ainda não confirmou explicitamente** (o aceite do conjunto as confirma; qualquer uma pode ser vetada):
+- D17, critério 3: o gate é o contador de linhas lidas, não tempo.
+- D22: a mitigação de escrever no papel as consultas e os índices do SQLite na spec da s01, e a atribuição das entregas de D34 e D35 às sprints.
+- D23: o piso `~> 1.20` em `mix.exs`.
+- D33: o `not` simples no avaliador, por ser o mesmo mecanismo do `not-join`.
+- D36: igualdade e junção entre tipos não numéricos diferentes não casam, sem erro.
+- D38: os usos práticos do flake (`nix run .#test` e afins) e o `Dockerfile` em dois estágios.
+- Datas: os documentos usam 2026-10-13 e 2026-10-14 nas decisões anteriores; a data da máquina é 2026-10-15.
 
 ## Decisões fechadas
 
