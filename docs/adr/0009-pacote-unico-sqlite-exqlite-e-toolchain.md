@@ -1,6 +1,6 @@
 # ADR-0009 — Pacote único `enoch`, SQLite via `exqlite` e toolchain estável mais recente
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** —
 

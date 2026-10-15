@@ -1,6 +1,6 @@
 # ADR-0007 — Schema em dados, API funcional por nome de instância e registro por lista de módulos
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** —
 

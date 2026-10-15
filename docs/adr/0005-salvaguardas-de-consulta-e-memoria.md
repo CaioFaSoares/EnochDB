@@ -1,6 +1,6 @@
 # ADR-0005 — Consulta abusiva morre e a memória do `Memory` tem limite explícito
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** —
 

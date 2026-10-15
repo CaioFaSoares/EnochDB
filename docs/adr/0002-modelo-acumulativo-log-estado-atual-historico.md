@@ -1,6 +1,6 @@
 # ADR-0002 — Modelo acumulativo: log imutável, estado atual e índice de histórico
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** — (a D15 do grilling, intervalo de visibilidade por linha, superou a D8; a D16 superou a D15 e restabeleceu a D8 para as bases passadas; a D28 revisou a D5 ao trazer o `:history` para o e01. Tudo antes de virar ADR)
 

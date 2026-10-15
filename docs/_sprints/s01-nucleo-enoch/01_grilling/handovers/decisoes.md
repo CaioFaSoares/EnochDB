@@ -171,6 +171,7 @@ Consequências registradas, não ainda decididas em separado:
 - O e01 entrega a opção A: regras nomeadas e agregados (D9, D10). Entrega também a verificação de um atributo materializado contra uma regra: compara o valor gravado com o recálculo e aponta as divergências.
 - A manutenção automática de atributo derivado declarado no schema (opção C) e os assinantes de eventos (opção D) ficam para o e02, desenhados com o ledger.
 - Regra do projeto: um valor derivado nunca é fonte de verdade; precisa ser reconstruível a partir do log e verificável contra o recálculo.
+↳ [Atualizado — 2026-10-15 · D39]: a opção C passou para o e01; o resto da D30 vale.
 
 **D31. Schema em dados, com a DSL de macros como açúcar (dono, 2026-10-14).**
 - A forma canônica do schema é uma lista de definições de atributo, em dados. O instalador recebe essa lista (D29) e a compara com o que está gravado.
@@ -239,6 +240,14 @@ Consequências registradas, não ainda decididas em separado:
 - **Tracker:** GitHub Issues, em `github.com/CaioFaSoares/EnochDB`. O registro de uso está em `docs/agents/README.md`. Fecha o item 10.
 - **Lote a a h confirmado:** testes com ExUnit e `stream_data ~> 1.0` (só em teste); `telemetry ~> 1.0`; item 23 com uma transação de leitura por consulta, numa só conexão; item 31 com o app de exemplo da s05 como prova da experiência e sem geradores no e01; vocabulário do item 8, já escrito em `CONTEXT.md`.
 - **Publicação:** o dono pediu publicar a documentação no remoto e criar uma primeira issue para popular a arquitetura de pastas na etapa `02_domain`, com um `CONTEXT.md` por pasta, sem gerar código. A arquitetura proposta está em `docs/arquitetura.md`.
+
+**D39. Atributo derivado mantido pelo motor entra no e01 (dono, 2026-10-15).** Revoga em parte a D30: a opção C, que ela mandava para o e02, entra no e01. O dono pediu o valor derivado "logo". O schema declara o atributo e a regra que o deriva, o motor escreve o valor na mesma transação, e `Enoch.verify_derived` e a reconstrução a partir do log seguem disponíveis. Os assinantes de eventos (opção D) continuam no e02. Ficam em aberto, para a `03_spec`: a sprint que entrega a opção C (depende do schema da s02 e das regras da s03), o corte entre atualização por delta e recálculo, e se `verify_derived` vira obrigatório na subida. Registro: [`ADR-0010`](../../../../adr/0010-valor-derivado-nunca-e-fonte-de-verdade.md).
+
+**D40. SQLite embutido no contêiner do back (dono, 2026-10-15).** O SQLite pode ficar embutido no contêiner do back, sem volume externo obrigatório. O dono quer poder desabilitá-lo, se possível. A forma de desabilitar (persistência opcional ou adaptador desligável por configuração) não foi escolhida e fica para a `03_spec`. Substitui "SQLite em volume" em `docs/arquitetura.md`. Registro: [`ADR-0009`](../../../../adr/0009-pacote-unico-sqlite-exqlite-e-toolchain.md).
+
+**D41. Glossário e árvore aprovados; "escritor" aceito (dono, 2026-10-15).** O dono aprovou o dicionário (`CONTEXT.md`) e a árvore de pastas (`docs/arquitetura.md`). Para o Transactor, "escritor" deixa de ser termo vetado; só "writer" continua vetado.
+
+**D42. Divergência entre o índice único parcial e o transactor; conferência do último `t` no SQLite (dono, 2026-10-15).** Direção do dono: evitar que o índice e o transactor divirjam e, se divergirem, valer o valor mais novo; conferir o último `t` lido pelo SQLite e, se divergir, ter uma forma de validar qual é o correto. O mecanismo é **proposta do agente, não confirmada**: o índice nasce do schema e é gravado na mesma transação que o transactor confirma; o passo 2 da subida (D34) os confere; se o índice rejeitar o que o transactor aceitou, a transação é revertida com erro explícito; o `max(tx)` do log é o `t` autoritativo e o estado atual é reconstruído a partir do log. O que "mais novo" significa quando os dois discordam não está definido. Registro: [`ADR-0004`](../../../../adr/0004-transactor-unico-regras-de-escrita-e-admissao.md) e [`ADR-0002`](../../../../adr/0002-modelo-acumulativo-log-estado-atual-historico.md).
 
 ## Em revisão
 

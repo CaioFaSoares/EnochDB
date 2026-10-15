@@ -1,6 +1,6 @@
 # ADR-0010 — Valor derivado nunca é fonte de verdade
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** — (revoga em parte a D30: a opção C, que a D30 mandava para o e02, entra no e01 por decisão do dono em 2026-10-15)
 

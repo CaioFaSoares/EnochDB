@@ -1,6 +1,6 @@
 # ADR-0001 — O avaliador Datalog em Elixir é o único motor de consulta
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** — (a D3 do grilling, só SQLite no e01, foi superada pela D7, e a D4, compilar Datalog para SQL, pela D6, ambas antes de virar ADR)
 

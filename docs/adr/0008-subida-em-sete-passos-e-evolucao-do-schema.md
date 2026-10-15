@@ -1,6 +1,6 @@
 # ADR-0008 — Subida em sete passos e evolução do schema entre deploys
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** — (a proposta original do item 35 do grilling foi corrigida pela D34 antes de virar ADR)
 

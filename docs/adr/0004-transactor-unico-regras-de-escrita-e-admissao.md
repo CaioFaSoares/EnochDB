@@ -1,6 +1,6 @@
 # ADR-0004 — O transactor único é dono das regras de escrita e da admissão
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** —
 

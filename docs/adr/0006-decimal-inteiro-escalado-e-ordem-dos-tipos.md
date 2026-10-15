@@ -1,6 +1,6 @@
 # ADR-0006 — `:decimal` como inteiro escalado e ordem dos valores definida pelo motor
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** —
 

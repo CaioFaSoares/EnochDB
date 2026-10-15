@@ -78,16 +78,33 @@ Loop de implementação de **todas as issues da sprint**, uma por vez, em ordem 
 
 ## decidir
 
-Registra a decisão do dono sobre o recibo vigente do gate da etapa atual e propaga o resultado. Argumento: `$2` ∈ `aceito|rejeitado|ajustado`, dito pelo dono; sem ele, pare e peça. O agente nunca escolhe a decisão.
+Registra a decisão do dono sobre o recibo que ele viu, para o gate da etapa atual, e propaga o resultado. Argumento: `$2` ∈ `aceito|rejeitado|ajustado`, dito pelo dono; sem ele, pare e peça. O agente nunca escolhe a decisão. Aqui `$2` é a decisão, nunca a sprint: a sprint é sempre a mais recente.
 
-1. Rode o painel do `status`. Pegue a etapa (`P.etapa`) e o recibo (`P.gate.recibo`). Se o gate não tem veredito (`BLOQUEIO`) ou o hook avisou que o artefato mudou depois do recibo, pare: o painel já grava o recibo novo, e a decisão vale sobre ele depois de o dono ver o resultado.
+1. Confira o frescor **sem chamar o Jev** (não rode o `conduzir`, que grava recibo novo se o texto mudou):
+
+   ```js
+   const c = await import(`${process.cwd()}/docs/_index/icm-conduzir.mjs`);
+   const g = await import(`${process.cwd()}/docs/_index/jev-gate.mjs`);
+   globalThis.SPRINT = c.sprints().at(-1);
+   globalThis.ETAPA = c.etapaAtual(g.fatosDoSprint(SPRINT)).nome;
+   globalThis.F = g.frescor(SPRINT, ETAPA);
+   console.log(JSON.stringify(F));
+   ```
+
+   Com `F.estado !== "atual"`, pare: diga ao dono o estado (`desatualizado` lista `F.mudados`) e que o `/icm status` grava o recibo novo para ele ver antes de decidir. Com `atual`, o recibo é `F.recibo` (o último `veredito` do `jev.jsonl`) e `F.veredito` é o que o dono viu.
 2. Registre a decisão sobre esse recibo:
 
    ```js
-   const g = await import(`${process.cwd()}/docs/_index/jev-gate.mjs`);
-   console.log(g.registrarDecisao({ sprint: P.sprint, etapa: P.etapa, recibo: P.gate.recibo, decisao: "$2" }));
+   console.log(g.registrarDecisao({ sprint: SPRINT, etapa: ETAPA, recibo: F.recibo, decisao: "$2" }));
    ```
 
 3. Só com `aceito` ou `ajustado`: troque `Status: proposta` por `aceita` nas ADRs que o recibo cobre (as `docs/adr/NNNN-*.md` linkadas pelo handover da etapa). Com `ajustado`, só nas que o dono listar. Com `rejeitado`, nada muda: o dono diz o que corrigir.
-4. Fechar a etapa é ato do dono: pergunte (`ask`) se fecha. Só com sim, ponha `status: fechado` na ficha `docs/_sprints/<sprint>/<etapa>/CONTEXT.md`; o hook pede a confirmação do dono nessa edição. Fechar a issue e comitar continuam com o dono.
-5. Rode o painel de novo e diga ao dono: trocar o status das ADRs muda os artefatos que o gate lê, então o `conduzir` grava um recibo novo, e a decisão fica no recibo do passo 2.
+4. Ainda com a etapa aberta, grave o recibo do texto final: trocar o status das ADRs muda os artefatos que o gate lê, e depois de fechar a ficha o `conduzir` passa à etapa seguinte e não roda mais esse gate. A decisão do passo 2 continua no recibo anterior; este só registra o texto depois da troca:
+
+   ```js
+   const r = await g.rodar({ judge, judgeBatch }, F.gate, { sprint: SPRINT });
+   console.log(r.veredito, r.recibo, JSON.stringify(g.registrar(r)));
+   ```
+
+5. Fechar a etapa é ato do dono: pergunte (`ask`) se fecha. Só com sim, ponha `status: fechado` na ficha `docs/_sprints/<sprint>/<etapa>/CONTEXT.md`; o hook pede a confirmação do dono nessa edição. Fechar a issue e comitar continuam com o dono.
+6. Mostre o painel, com a sprint explícita (o snippet do `status` usa `$2`, que aqui é a decisão): `globalThis.P = await c.conduzir({ judge, judgeBatch }, { sprint: SPRINT }); console.log(c.painel(P));`. Diga ao dono qual é o recibo da decisão (passo 2) e qual é o do texto final (passo 4).

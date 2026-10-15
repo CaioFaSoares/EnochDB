@@ -1,6 +1,6 @@
 # ADR-0003 — `Memory` em ETS, com contador como base e recuperação do transactor
 
-- **Status:** proposta
+- **Status:** aceita
 - **Data:** 2026-10-15
 - **Supera:** — (a primeira versão da D16 para o `Memory`, estruturas persistentes, foi superada pela D18 antes de virar ADR)
 
