@@ -4,6 +4,8 @@ Vocabulário de domínio aprovado do projeto. Termos só entram após decisão e
 
 O processo e os termos de sprint (step, sprint, handover) estão em [`docs/PROCESS.md`](docs/PROCESS.md).
 
+A arquitetura de pastas do pacote `enoch` está em [`docs/arquitetura.md`](docs/arquitetura.md); a issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) cria as pastas, cada uma com um `CONTEXT.md`, antes de qualquer código.
+
 ## Termos de domínio
 
 ### Quem usa e quem amplia o Enoch
