@@ -1,13 +1,13 @@
-// Hook do ICM do EnochDB. Ver docs/agents/jev.md §Hooks.
+// EnochDB's ICM hook. See docs/agents/jev.md §Hooks.
 //
-// Três coisas, todas derivadas e sem chamar o Jev (o Jev roda no `eval`, pelo `/icm`):
-//   1. guarda    (tool_call)   protege o que o agente não deve reescrever e pede o dono para fechar etapa;
-//   2. frescor   (tool_result, agent_end)  se o artefato de uma etapa mudou desde o último recibo do Jev,
-//                devolve a instrução de rodar o gate e, no fim do turno, dispara um turno para isso;
-//   3. status    (session_start, agent_end)  uma linha no rodapé com etapa e frescor.
+// Three things, all derived and without calling Jev (Jev runs in `eval`, through `/icm`):
+//   1. guard      (tool_call)   protects what the agent must not rewrite and asks the owner to close a stage;
+//   2. freshness  (tool_result, agent_end)  if a stage's artifact changed since Jev's last receipt,
+//                it returns the instruction to run the gate and, at the end of the turn, triggers a turn for that;
+//   3. status     (session_start, agent_end)  a line in the footer with stage and freshness.
 //
-// Falha segura: erro do próprio hook em `tool_call` bloqueia (política do omp); em `tool_result` e
-// `agent_end` o hook nunca atrapalha o fluxo, só deixa de avisar.
+// Fail safe: an error in the hook itself in `tool_call` blocks (omp policy); in `tool_result` and
+// `agent_end` the hook never hinders the flow, it just stops warning.
 import { relative, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext } from "@oh-my-pi/pi-coding-agent";
 import { etapaAtual, sprints } from "../../../docs/_index/icm-conduzir.mjs";
@@ -17,7 +17,7 @@ import type { Frescor } from "../../../docs/_index/jev-gate.mjs";
 const HANDOVER = /^docs\/_sprints\/([^/]+)\/(\d{2}_[a-z]+)\/handovers\/[^/]+\.md$/;
 const ADR = /^docs\/adr\/\d{4}-[^/]+\.md$/;
 const CABECALHO_EDIT = /^\[([^\]#]+)#[0-9A-Za-z]{2,}\]/gm;
-/** Etapa com loop próprio (`/icm implement`): o recibo dela nasce em `fechar`, não pelo aviso do hook. */
+/** Stage with its own loop (`/icm implement`): its receipt is born in `fechar`, not from the hook warning. */
 const ETAPAS_SEM_AVISO: Record<string, true> = { "05_implement": true };
 
 interface Vigente {
@@ -29,7 +29,7 @@ function texto(valor: unknown): string {
   return typeof valor === "string" ? valor : "";
 }
 
-/** Caminhos que um `edit` ou `write` toca, relativos à raiz do repositório; fora dela, descartados. */
+/** Paths an `edit` or `write` touches, relative to the repository root; outside it, discarded. */
 function alvos(input: Record<string, unknown>, cwd: string): string[] {
   const brutos = new Set<string>();
   if (typeof input.path === "string") brutos.add(input.path.replace(/:\d+(-\d+)?$/, ""));
@@ -43,7 +43,7 @@ function alvos(input: Record<string, unknown>, cwd: string): string[] {
   return rels;
 }
 
-/** Sprint mais recente e a etapa em que ela está, derivados das fichas. */
+/** Most recent sprint and the stage it is in, derived from the cards. */
 function vigente(): Vigente | null {
   const sprint = sprints().at(-1);
   if (!sprint) return null;
@@ -56,16 +56,16 @@ const ESTADOS_VELHOS: Partial<Record<Frescor["estado"], true>> = { sem_recibo: t
 function diretiva(v: Vigente, f: Frescor): string {
   const porque =
     f.estado === "sem_recibo"
-      ? "ainda não tem recibo do Jev"
-      : `mudou desde o recibo ${f.recibo ?? "anterior"} (${(f.mudados ?? []).join(", ")})`;
+      ? "does not have a Jev receipt yet"
+      : `changed since receipt ${f.recibo ?? "anterior"} (${(f.mudados ?? []).join(", ")})`;
   return [
-    `[ICM · hook] O gate \`${f.gate}\` da etapa ${v.etapa} ${porque}.`,
-    "Rode o gate antes de continuar ou de dizer que está pronto. No `eval` (js):",
+    `[ICM · hook] The \`${f.gate}\` gate of stage ${v.etapa} ${porque}.`,
+    "Run the gate before continuing or saying you are ready. In `eval` (js):",
     "```js",
     "const c = await import(`${process.cwd()}/docs/_index/icm-conduzir.mjs`);",
     `console.log(c.painel(await c.conduzir({ judge, judgeBatch }, { sprint: "${v.sprint}", issues: false })));`,
     "```",
-    "Isso grava o recibo em `handovers/jev.jsonl`. Confirme cada ACHADO e INCERTO no artefato antes de resumir: o veredito é consultivo e fechar a etapa é do dono.",
+    "This writes the receipt to `handovers/jev.jsonl`. Confirm each ACHADO and INCERTO in the artifact before summarizing: the verdict is advisory and closing the stage belongs to the owner.",
   ].join("\n");
 }
 
@@ -76,10 +76,10 @@ function guarda(rels: string[], conteudo: string): { motivo: string; rel: string
   const fechar = new RegExp(g.status_que_pede_dono);
   for (const rel of rels) {
     if (g.proteger.some(p => rel === p || (p.endsWith("/") && rel.startsWith(p)))) {
-      return { rel, motivo: "é a casa das perguntas, dos limiares e do código do Jev; mudá-la muda o que o gate considera aprovado" };
+      return { rel, motivo: "it is the home of the questions, the thresholds and Jev's code; changing it changes what the gate considers approved" };
     }
-    if (recibos.test(rel)) return { rel, motivo: "o recibo só é escrito pelo código do gate (registrar), nunca à mão" };
-    if (ficha.test(rel) && fechar.test(conteudo)) return { rel, motivo: "fechar etapa é do dono (A3): o gate do Jev é consultivo" };
+    if (recibos.test(rel)) return { rel, motivo: "the receipt is only written by the gate code (registrar), never by hand" };
+    if (ficha.test(rel) && fechar.test(conteudo)) return { rel, motivo: "closing a stage belongs to the owner (A3): Jev's gate is advisory" };
   }
   return null;
 }
@@ -94,7 +94,7 @@ export default function icmJev(pi: ExtensionAPI): void {
       const v = vigente();
       if (!v) return ctx.ui.setStatus("icm", undefined);
       const f = frescor(v.sprint, v.etapa);
-      ctx.ui.setStatus("icm", `ICM ${v.sprint} · ${v.etapa} · ${f.gate ?? "sem gate"}: ${f.estado.replace("_", " ")}`);
+      ctx.ui.setStatus("icm", `ICM ${v.sprint} · ${v.etapa} · ${f.gate ?? "no gate"}: ${f.estado.replace("_", " ")}`);
     } catch {
       ctx.ui.setStatus("icm", undefined);
     }
@@ -110,11 +110,11 @@ export default function icmJev(pi: ExtensionAPI): void {
     if (!achado) return;
     const razao = `ICM: ${achado.rel} — ${achado.motivo}.`;
     if (ctx.agent.kind === "main" && ctx.hasUI) {
-      const ok = await ctx.ui.confirm("ICM: escrita protegida", `${razao}\n\nPermitir esta escrita?`);
+      const ok = await ctx.ui.confirm("ICM: protected write", `${razao}\n\nAllow this write?`);
       if (ok) return;
-      return { block: true, reason: `${razao} O dono negou.` };
+      return { block: true, reason: `${razao} The owner denied it.` };
     }
-    return { block: true, reason: `${razao} Sem o dono presente, a escrita foi bloqueada.` };
+    return { block: true, reason: `${razao} With no owner present, the write was blocked.` };
   });
 
   pi.on("tool_result", async (event, ctx) => {

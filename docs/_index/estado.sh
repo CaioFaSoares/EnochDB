@@ -1,12 +1,12 @@
 #!/usr/bin/env sh
-# Estado derivado de épicos e sprints do EnochDB. Somente leitura: não edita nada.
-# Uso: sh docs/_index/estado.sh
+# Derived state of EnochDB epics and sprints. Read-only: it edits nothing.
+# Usage: sh docs/_index/estado.sh
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 docs=$(CDPATH= cd -- "$here/.." && pwd)
 
-campo() { # campo <arquivo> <chave>
+campo() { # campo <file> <key>
   awk -v k="$2" '
     index($0, k ":") == 1 {
       v = $0
@@ -18,7 +18,7 @@ campo() { # campo <arquivo> <chave>
     }' "$1"
 }
 
-estado_sprint() { # estado_sprint <dir-da-sprint>
+estado_sprint() { # estado_sprint <sprint-dir>
   d="$1"; total=0; vazio=0; fim=0
   for f in "$d"/*/CONTEXT.md; do
     [ -e "$f" ] || continue
@@ -37,7 +37,7 @@ estado_sprint() { # estado_sprint <dir-da-sprint>
   fi
 }
 
-echo "# Épicos"
+echo "# Epics"
 for f in "$docs"/epicos/*.md; do
   [ -e "$f" ] || continue
   base=$(basename "$f" .md)
@@ -57,7 +57,7 @@ for d in "$docs"/_sprints/*/; do
 done
 
 echo
-echo "# Backlog (sem sprint)"
+echo "# Backlog (without sprint)"
 for f in "$docs"/_backlog/B*.md; do
   [ -e "$f" ] || continue
   printf -- '- %-34s epico_sugerido=%s  %s\n' "$(basename "$f" .md)" "$(campo "$f" epico_sugerido)" "$(campo "$f" titulo)"

@@ -1,4 +1,4 @@
-// Tipos só do que o hook `.omp/hooks/pre/icm-jev.ts` importa. O contrato vive em icm-conduzir.mjs.
+// Types only for what the hook `.omp/hooks/pre/icm-jev.ts` imports. The contract lives in icm-conduzir.mjs.
 import type { Fatos } from "./jev-gate.mjs";
 
 export function sprints(): string[];

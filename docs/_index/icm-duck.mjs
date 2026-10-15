@@ -1,18 +1,18 @@
-// Backlog do `/icm duck`. Ver docs/_backlog/README.md e docs/agents/jev.md §Duck.
+// Backlog of `/icm duck`. See docs/_backlog/README.md and docs/agents/jev.md §Duck.
 //
-// A conversa com o rubberduck explora uma dúvida; o que vale guardar vira um
-// arquivo em docs/_backlog/. Este módulo só valida e grava; quem conversa e
-// decide o que entra é o orquestrador com o dono.
+// The conversation with the rubberduck explores a doubt; what is worth keeping
+// becomes a file in docs/_backlog/. This module only validates and writes; who
+// talks and decides what goes in is the orchestrator with the owner.
 //
 //   const B = await import(`${process.cwd()}/docs/_index/icm-duck.mjs`);
 //   const v = await B.prever({ judge, judgeBatch }, { titulo, pergunta, evidencias, contradicoes, em_aberto });
-//   console.log(B.texto(v));          // o dono lê antes de qualquer escrita
-//   B.gravar(v);                      // só depois do ok do dono; recusa se houver bloqueio
+//   console.log(B.texto(v));          // the owner reads before any write
+//   B.gravar(v);                      // only after the owner's ok; refuses if there is a block
 //
-// Garantias em código: toda âncora `arquivo:linha` é aberta e o trecho citado
-// precisa estar na linha; item sem âncora é gravado como ideia, nunca como fato;
-// o épico sugerido é consultivo (Jev, abaixo da confiança mínima fica `—`);
-// posicionar numa sprint é mover o arquivo, ato do dono.
+// Guarantees in code: every `arquivo:linha` anchor is opened and the cited excerpt
+// must be in the line; an item without an anchor is written as an idea, never as a
+// fact; the suggested epic is advisory (Jev, below the minimum confidence it stays
+// `—`); positioning in a sprint is moving the file, an owner act.
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { RAIZ, campo, carregarConfig, cortar, lote, perguntasBool } from "./jev-gate.mjs";
@@ -30,15 +30,15 @@ const norm = s => semAcento(s).toLowerCase().replace(/\s+/g, " ").trim();
 
 function resolverAncora({ ancora, trecho }) {
   const m = /^(.+):(\d+)$/.exec(ancora ?? "");
-  if (!m) return `âncora inválida (esperado arquivo:linha): ${ancora}`;
+  if (!m) return `invalid anchor (expected arquivo:linha): ${ancora}`;
   const abs = resolve(RAIZ, m[1]);
-  if (abs !== ALEPH && !abs.startsWith(RAIZ + sep) && !abs.startsWith(ALEPH + sep)) return `âncora fora de ${ALEPH}: ${ancora}`;
-  if (abs.split(sep).includes(".git")) return `âncora em .git: ${ancora}`;
-  if (!existsSync(abs)) return `arquivo da âncora não existe: ${ancora}`;
+  if (abs !== ALEPH && !abs.startsWith(RAIZ + sep) && !abs.startsWith(ALEPH + sep)) return `anchor outside ${ALEPH}: ${ancora}`;
+  if (abs.split(sep).includes(".git")) return `anchor in .git: ${ancora}`;
+  if (!existsSync(abs)) return `anchor file does not exist: ${ancora}`;
   const linhas = readFileSync(abs, "utf8").split("\n");
   const n = Number(m[2]);
-  if (n < 1 || n > linhas.length) return `linha fora do arquivo (${linhas.length} linhas): ${ancora}`;
-  if (!trecho || !norm(linhas[n - 1]).includes(norm(trecho))) return `o trecho não está na linha ${n} de ${m[1]}: "${trecho}"`;
+  if (n < 1 || n > linhas.length) return `line outside the file (${linhas.length} lines): ${ancora}`;
+  if (!trecho || !norm(linhas[n - 1]).includes(norm(trecho))) return `the excerpt is not in line ${n} of ${m[1]}: "${trecho}"`;
   return null;
 }
 
@@ -54,7 +54,7 @@ function epicosAbertos() {
     .filter(e => e.status === "aberto");
 }
 
-/** Sprints sem nenhuma etapa iniciada: candidatas a receber o item. Derivado das fichas. */
+/** Sprints without any started stage: candidates to receive the item. Derived from the sheets. */
 export function sprintsNaoIniciadas() {
   const d = join(RAIZ, "docs/_sprints");
   if (!existsSync(d)) return [];
@@ -80,52 +80,52 @@ function renderizar(v) {
     `titulo: ${v.titulo}`,
     "origem: duck",
     `aberta_em: ${v.data}`,
-    `epico_sugerido: ${v.epico ?? "—"} # consultivo (Jev${v.epico_confianca != null ? `, confiança ${v.epico_confianca}` : ""}); quem posiciona é o dono`,
-    ...(v.evidencias.length ? [] : ["sem_ancora: true # ideia, não fato"]),
+    `epico_sugerido: ${v.epico ?? "—"} # advisory (Jev${v.epico_confianca != null ? `, confidence ${v.epico_confianca}` : ""}); whoever positions it is the owner`,
+    ...(v.evidencias.length ? [] : ["sem_ancora: true # idea, not fact"]),
     "---",
     "",
     `# ${v.id} — ${v.titulo}`,
     "",
-    "## Pergunta",
+    "## Question",
     "",
     v.pergunta,
     "",
   ];
-  if (v.resumo) l.push("## O que se sabe", "", v.resumo, "");
+  if (v.resumo) l.push("## What is known", "", v.resumo, "");
   if (v.evidencias.length) {
-    l.push("## Âncoras", "");
+    l.push("## Anchors", "");
     for (const e of v.evidencias) l.push(`- \`${e.ancora}\` — ${e.trecho}`);
     l.push("");
   }
-  if (v.contradicoes.length) l.push("## Contradições", "", ...v.contradicoes.map(c => `- ${c}`), "");
-  if (v.em_aberto.length) l.push("## Em aberto", "", ...v.em_aberto.map(c => `- ${c}`), "");
+  if (v.contradicoes.length) l.push("## Contradictions", "", ...v.contradicoes.map(c => `- ${c}`), "");
+  if (v.em_aberto.length) l.push("## Open", "", ...v.em_aberto.map(c => `- ${c}`), "");
   l.push(
-    "## Como posicionar",
+    "## How to position",
     "",
-    "Mover este arquivo para `docs/_sprints/<sprint>/01_grilling/inputs/` de uma sprint ainda não iniciada (`git mv`). Sair daqui é o posicionamento; ninguém declara a sprint de destino dentro do arquivo.",
+    "Move this file to `docs/_sprints/<sprint>/01_grilling/inputs/` of a sprint that has not started yet (`git mv`). Leaving here is the positioning; nobody declares the destination sprint inside the file.",
     "",
   );
   return l.join("\n");
 }
 
 /**
- * Valida e prepara o item sem escrever nada. `args`: { titulo, pergunta, resumo?, evidencias?, contradicoes?, em_aberto? }.
- * `evidencias`: [{ ancora: "arquivo:linha", trecho }]. Devolve `bloqueios` se algo não se sustenta.
+ * Validates and prepares the item without writing anything. `args`: { titulo, pergunta, resumo?, evidencias?, contradicoes?, em_aberto? }.
+ * `evidencias`: [{ ancora: "arquivo:linha", trecho }]. Returns `bloqueios` if something does not hold.
  */
 export async function prever(kernel, args) {
   const cfg = carregarConfig();
   const cfgB = cfg.conducao.backlog;
   const { titulo, pergunta, resumo = "", evidencias = [], contradicoes = [], em_aberto = [] } = args ?? {};
   const v = { id: proximoId(), titulo, pergunta, resumo, evidencias, contradicoes, em_aberto, data: new Date().toISOString().slice(0, 10), bloqueios: [], achados: [], epico: null, epico_confianca: null, truncamentos: [] };
-  if (!titulo?.trim()) v.bloqueios.push("sem título");
-  if (!pergunta?.trim()) v.bloqueios.push("sem pergunta");
+  if (!titulo?.trim()) v.bloqueios.push("no title");
+  if (!pergunta?.trim()) v.bloqueios.push("no question");
   if (v.bloqueios.length) return v;
   for (const e of evidencias) {
     const erro = resolverAncora(e);
     if (erro) v.bloqueios.push(erro);
   }
   v.arquivo = `${DIR}/${v.id}-${slug(titulo)}.md`;
-  if (existsSync(join(RAIZ, v.arquivo))) v.bloqueios.push(`já existe: ${v.arquivo}`);
+  if (existsSync(join(RAIZ, v.arquivo))) v.bloqueios.push(`already exists: ${v.arquivo}`);
   if (v.bloqueios.length) return v;
   v.md = renderizar(v);
 
@@ -135,18 +135,18 @@ export async function prever(kernel, args) {
   if (epicos.length) {
     questions.epico = {
       type: "choice",
-      instructions: "A qual épico aberto este item do backlog pertence?",
-      criteria: { ...Object.fromEntries(epicos.map(e => [e.id, e.titulo])), nenhum: "Nenhum dos épicos abertos descreve o assunto do item." },
+      instructions: "Which open epic does this backlog item belong to?",
+      criteria: { ...Object.fromEntries(epicos.map(e => [e.id, e.titulo])), nenhum: "None of the open epics describes the subject of the item." },
     };
   }
   const { ok, erro } = await lote(kernel, { item: { item: estado } }, questions, `backlog ${v.id}`);
-  for (const m of Object.values(erro)) v.bloqueios.push(`judge falhou: ${m}`);
+  for (const m of Object.values(erro)) v.bloqueios.push(`judge failed: ${m}`);
   const r = ok.item;
   if (r) {
     for (const q of cfgB.perguntas) {
       const x = r[q.id]?.bool;
       if (typeof x !== "number") {
-        v.bloqueios.push(`sem resposta para ${q.id}`);
+        v.bloqueios.push(`no answer for ${q.id}`);
         continue;
       }
       const [baixo, alto] = cfg.faixa_incerta;
@@ -164,23 +164,23 @@ export async function prever(kernel, args) {
   return v;
 }
 
-/** Grava o item. Recusa se `prever` devolveu bloqueio. Só depois do ok do dono. */
+/** Writes the item. Refuses if `prever` returned a block. Only after the owner's ok. */
 export function gravar(v) {
-  if (v.bloqueios?.length) throw new Error(`não gravo com bloqueio: ${v.bloqueios.join("; ")}`);
+  if (v.bloqueios?.length) throw new Error(`I do not write with a block: ${v.bloqueios.join("; ")}`);
   const abs = join(RAIZ, v.arquivo);
-  if (existsSync(abs)) throw new Error(`já existe: ${v.arquivo}`);
+  if (existsSync(abs)) throw new Error(`already exists: ${v.arquivo}`);
   mkdirSync(join(RAIZ, DIR), { recursive: true });
   writeFileSync(abs, v.md);
   return { arquivo: v.arquivo };
 }
 
 export function texto(v) {
-  const l = [`backlog · ${v.id ?? "—"} · ${v.titulo ?? "(sem título)"}`];
-  for (const b of v.bloqueios) l.push(`BLOQUEIO  ${b}`);
-  for (const a of v.achados) l.push(`${a.classe === "achado" ? "ACHADO   " : "INCERTO  "} ${a.pergunta} = ${a.valor.toFixed(2)}`);
+  const l = [`backlog · ${v.id ?? "—"} · ${v.titulo ?? "(no title)"}`];
+  for (const b of v.bloqueios) l.push(`BLOCKED  ${b}`);
+  for (const a of v.achados) l.push(`${a.classe === "achado" ? "FINDING  " : "UNCERTAIN"} ${a.pergunta} = ${a.valor.toFixed(2)}`);
   if (!v.bloqueios.length) {
-    l.push(`arquivo: ${v.arquivo}`, `âncoras verificadas em código: ${v.evidencias.length}${v.evidencias.length ? "" : " (grava como ideia, sem fato)"}`, `épico sugerido: ${v.epico ?? "—"}${v.epico_confianca != null ? ` (${v.epico_confianca})` : ""}`);
-    l.push(`sprints ainda não iniciadas: ${v.candidatas?.length ? v.candidatas.join(", ") : "nenhuma (crie uma pelo PROCESS.md, \"Abrir uma sprint\")"}`);
+    l.push(`file: ${v.arquivo}`, `anchors verified in code: ${v.evidencias.length}${v.evidencias.length ? "" : " (written as an idea, without fact)"}`, `suggested epic: ${v.epico ?? "—"}${v.epico_confianca != null ? ` (${v.epico_confianca})` : ""}`);
+    l.push(`sprints not yet started: ${v.candidatas?.length ? v.candidatas.join(", ") : "nenhuma (create one via PROCESS.md, \"Abrir uma sprint\")"}`);
   }
   return l.join("\n");
 }

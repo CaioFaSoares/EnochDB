@@ -1,40 +1,40 @@
-# Jev no ICM do EnochDB
+# Jev in EnochDB's ICM
 
-O Jev (TypeSafe System One, `jev-latest`) é a **camada de julgamento** dos gates do ICM deste repositório. Ele confere estado, cobertura e evidência antes de o dono ler; não decide nada. A pesquisa que fundamenta o desenho está no `_Aleph`: `_research/AlephBible/chat.md:379-508` (decisões D5–D13, restrições §6, resultados §7). Aqui só se diz como ela se aplica.
+Jev (TypeSafe System One, `jev-latest`) is the **judgment layer** of this repository's ICM gates. It checks state, coverage and evidence before the owner reads it; it decides nothing. The research that grounds the design is in `_Aleph`: `_research/AlephBible/chat.md:379-508` (decisions D5–D13, constraints §6, results §7). Here it only says how it applies.
 
-## Peças
+## Pieces
 
-| Peça | Caminho | Papel |
+| Piece | Path | Role |
 | --- | --- | --- |
-| Papel `judge` | [`../../.omp/config.yml`](../../.omp/config.yml), `modelRoles.judge` | aponta o `judge()` do `eval` do omp para `typesafe/jev-latest` |
-| Perguntas e limiares | [`jev-gates.json`](jev-gates.json) | **único** arquivo que o dono revisa; nada de pergunta ou limiar em outro lugar |
-| Runner | [`../_index/jev-gate.mjs`](../_index/jev-gate.mjs) | monta o `state`, chama o Jev, combina em código, devolve veredito |
-| Condutor | [`../_index/icm-conduzir.mjs`](../_index/icm-conduzir.mjs) | deriva a etapa atual, roda o gate dela, lê as issues abertas e monta o despacho de subagentes |
-| Implementação | [`../_index/icm-implementar.mjs`](../_index/icm-implementar.mjs) | loop por issue: plano, go, passo (despacho + medição + verificação + Jev), fechamento |
-| Backlog | [`../_index/icm-duck.mjs`](../_index/icm-duck.mjs) | valida âncoras e grava `docs/_backlog/Bnn-*.md` |
-| Comando | [`../../.omp/commands/icm.md`](../../.omp/commands/icm.md) | `/icm [status\|continue\|duck\|implement] [sprint \| tema]` |
-| Hook | [`../../.omp/hooks/pre/icm-jev.ts`](../../.omp/hooks/pre/icm-jev.ts) | guarda de escrita, frescor do gate e turno de parada; ver "Hooks do omp" |
-| Recibo | `docs/_sprints/{sprint}/{etapa}/handovers/jev.jsonl` | uma linha por veredito e uma por decisão humana; só `registrar`/`registrarDecisao` escrevem |
+| `judge` role | [`../../.omp/config.yml`](../../.omp/config.yml), `modelRoles.judge` | points omp's `eval` `judge()` to `typesafe/jev-latest` |
+| Questions and thresholds | [`jev-gates.json`](jev-gates.json) | the **only** file the owner reviews; no question or threshold anywhere else |
+| Runner | [`../_index/jev-gate.mjs`](../_index/jev-gate.mjs) | assembles the `state`, calls Jev, combines in code, returns the verdict |
+| Conductor | [`../_index/icm-conduzir.mjs`](../_index/icm-conduzir.mjs) | derives the current stage, runs its gate, reads the open issues and assembles the subagent dispatch |
+| Implementation | [`../_index/icm-implementar.mjs`](../_index/icm-implementar.mjs) | loop per issue: plan, go, step (dispatch + measurement + verification + Jev), closing |
+| Backlog | [`../_index/icm-duck.mjs`](../_index/icm-duck.mjs) | validates anchors and writes `docs/_backlog/Bnn-*.md` |
+| Command | [`../../.omp/commands/icm.md`](../../.omp/commands/icm.md) | `/icm [status\|continue\|duck\|implement] [sprint \| tema]` |
+| Hook | [`../../.omp/hooks/pre/icm-jev.ts`](../../.omp/hooks/pre/icm-jev.ts) | write guard, gate freshness and stop turn; see "omp Hooks" |
+| Receipt | `docs/_sprints/{sprint}/{etapa}/handovers/jev.jsonl` | one line per verdict and one per human decision; only `registrar`/`registrarDecisao` write |
 
-A chave da TypeSafe fica na credencial do omp (`typesafe`), nunca em arquivo do repositório.
+The TypeSafe key lives in the omp credential (`typesafe`), never in a repository file.
 
 ## Gates
 
-| Gate | Quando | O que confere |
+| Gate | When | What it checks |
 | --- | --- | --- |
-| `estado` | início de sessão e antes de dizer "pronto" | fichas × pastas × handovers; ordem das etapas em código, coerência ficha × handover pelo Jev |
-| `grilling` | antes do gate humano do `01_grilling` | decisão fechada sem origem; pergunta aberta dentro de decisão fechada |
-| `dominio` | antes do gate humano do `02_domain` | ADR só com a solução (lê os ADRs linkados pelo handover); termo sem aprovação; decisão sem casa |
-| `spec` | antes do gate humano do `03_spec` | cada decisão `Dn` do grilling aparece na spec e nenhuma é contradita |
-| `tickets` | antes de publicar | cada item da spec é entregue por algum ticket |
-| `implementacao` | antes de pedir o gate do `05_implement` | cada critério tem execução registrada; alegação sem comando |
-| `revisao` | antes do gate do `06_review` | achado sem evidência ou sem destino; verificação sem comando |
-| `handoff` | antes do gate do `07_handoff` | teste de contexto zero; execução alegada sem prova |
-| `opcoes` | quando houver mais de um caminho viável | cada opção × cada critério, ranking e empate em código |
+| `estado` | session start and before saying "ready" | sheets × folders × handovers; stage order in code, sheet × handover coherence by Jev |
+| `grilling` | before the human gate of `01_grilling` | closed decision without origin; open question inside a closed decision |
+| `dominio` | before the human gate of `02_domain` | ADR with only the solution (reads the ADRs linked by the handover); term without approval; decision without a home |
+| `spec` | before the human gate of `03_spec` | each `Dn` decision from grilling appears in the spec and none is contradicted |
+| `tickets` | before publishing | each spec item is delivered by some ticket |
+| `implementacao` | before requesting the `05_implement` gate | each criterion has recorded execution; claim without command |
+| `revisao` | before the `06_review` gate | finding without evidence or without destination; verification without command |
+| `handoff` | before the `07_handoff` gate | zero-context test; claimed execution without proof |
+| `opcoes` | when there is more than one viable path | each option × each criterion, ranking and tie in code |
 
-## Como chamar
+## How to call
 
-Dentro do `eval` (JS) do omp, com o cwd em `EnochDB/` para valer o papel `judge`:
+Inside omp's `eval` (JS), with cwd at `EnochDB/` for the `judge` role to apply:
 
 ```js
 const g = await import(`${process.cwd()}/docs/_index/jev-gate.mjs`);
@@ -42,93 +42,93 @@ const r = await g.rodar({ judge, judgeBatch }, "spec", { sprint: "s01-nucleo-eno
 console.log(g.texto(r));
 ```
 
-- `rodar(kernel, gate, args)` — `args.sprint` obrigatório, exceto em `opcoes` (`decisao`, `opcoes`, `criterios`, `contexto`). Para `cobertura`, `args.itens` (`[{id, texto}]`) substitui a extração automática.
-- `registrar(r)` — acrescenta o veredito ao `jev.jsonl` da etapa; idempotente pelo `recibo`.
-- `registrarDecisao({sprint, etapa, recibo, decisao})` — **só depois** de o dono dizer `aceito`, `rejeitado` ou `ajustado`. É o par `(veredito, decisão humana)` da D7 do handoff; o agente não o escolhe.
+- `rodar(kernel, gate, args)` — `args.sprint` required, except in `opcoes` (`decisao`, `opcoes`, `criterios`, `contexto`). For `cobertura`, `args.itens` (`[{id, texto}]`) replaces automatic extraction.
+- `registrar(r)` — appends the verdict to the stage's `jev.jsonl`; idempotent by the `recibo`.
+- `registrarDecisao({sprint, etapa, recibo, decisao})` — **only after** the owner says `aceito`, `rejeitado` or `ajustado`. It is the `(veredito, decisao_humana)` pair of handoff D7; the agent does not choose it.
 
-Veredito: `bloqueado` (ferramenta, artefato, extração ou judge falhou), `revisar` (há achado ou incerto) ou `sem_achados`. `sem_achados` **não** é aprovação.
+Verdict: `bloqueado` (tool, artifact, extraction or judge failed), `revisar` (there is a finding or it is uncertain) or `sem_achados`. `sem_achados` is **not** approval.
 
-## Hooks do omp
+## omp Hooks
 
-O hook `.omp/hooks/pre/icm-jev.ts` (descoberta ambiente do omp; vale com o cwd em `EnochDB/`) faz o fluxo acontecer sem o agente lembrar. Ele **não chama o Jev**: o Jev continua rodando no `eval`, pelo `conduzir`; o hook garante que isso aconteça no momento certo. Tudo é derivado das fichas, dos arquivos e dos recibos (A4).
+The hook `.omp/hooks/pre/icm-jev.ts` (ambient discovery by omp; applies with cwd at `EnochDB/`) makes the flow happen without the agent remembering. It **does not call Jev**: Jev keeps running in the `eval`, via `conduzir`; the hook guarantees that this happens at the right moment. Everything is derived from the sheets, the files and the receipts (A4).
 
-| Evento | O que faz | Quem sofre |
+| Event | What it does | Who is affected |
 | --- | --- | --- |
-| `tool_call` (`edit`/`write`) | **Guarda.** Bloqueia escrita em `conducao.guarda.proteger` (`jev-gates.json`, `docs/_index/`, o próprio hook, `icm.md`), em `jev.jsonl` à mão e `status: fechado` em ficha de etapa. Com UI, o agente principal pergunta ao dono; sem UI e em subagente, bloqueia. | todos |
-| `tool_result` (`edit`/`write`) | **Frescor.** Se o handover da etapa vigente (ou um ADR, na `02_domain`) mudou desde o último recibo, devolve como contexto confiável a instrução de rodar o gate, uma vez por turno. | agente principal |
-| `agent_end` | **Parada.** Se ainda há gate sem recibo ou desatualizado, dispara um turno (`sendMessage` com `triggerTurn`) com a mesma instrução. Uma vez por estado: não entra em laço. | agente principal |
-| `session_start`, `agent_end` | **Status.** Linha no rodapé: `ICM <sprint> · <etapa> · <gate>: <frescor>`. | UI |
+| `tool_call` (`edit`/`write`) | **Guard.** Blocks writing to `conducao.guarda.proteger` (`jev-gates.json`, `docs/_index/`, the hook itself, `icm.md`), to `jev.jsonl` by hand and `status: fechado` in a stage sheet. With UI, the main agent asks the owner; without UI and in a subagent, it blocks. | everyone |
+| `tool_result` (`edit`/`write`) | **Freshness.** If the current stage's handover (or an ADR, in `02_domain`) changed since the last receipt, it returns as trusted context the instruction to run the gate, once per turn. | main agent |
+| `agent_end` | **Stop.** If there is still a gate without a receipt or outdated, it fires a turn (`sendMessage` with `triggerTurn`) with the same instruction. Once per state: it does not loop. | main agent |
+| `session_start`, `agent_end` | **Status.** Footer line: `ICM <sprint> · <etapa> · <gate>: <frescor>`. | UI |
 
-- **Frescor** (`frescor(sprint, etapa)` em `jev-gate.mjs`): compara o hash atual dos artefatos que o gate lê com o do último recibo `veredito` do gate. `sem_recibo` e `desatualizado` avisam; `sem_artefato` (nada a julgar) e `atual` não. Recibo bloqueado nunca é gravado, então não vale como recibo.
-- **O recibo agora nasce do `conduzir`.** Ele grava o veredito real do gate da etapa (idempotente pelo `recibo`); o agente não precisa chamar `registrar`. A decisão do dono continua só em `registrarDecisao`.
-- **`dominio` lê os ADRs.** O gate lê o `adrs.md` **e cada `docs/adr/NNNN-*.md` que ele linka** (`artefatos_citados`); ADR citado que não existe bloqueia. Editar só um ADR já torna o gate desatualizado.
-- `05_implement` fica fora do aviso: o recibo dela nasce em `fechar` do `/icm implement`.
-- O hook falha em silêncio em `tool_result` e `agent_end` (só deixa de avisar) e fecha em `tool_call`. Para manter a casa única, a lista de caminhos protegidos mora em `jev-gates.json` (`conducao.guarda`).
-- Manutenção: editar o próprio sistema (`docs/_index/`, hook, `jev-gates.json`) pede confirmação do dono; sem UI, edite fora da sessão do ICM.
+- **Freshness** (`frescor(sprint, etapa)` in `jev-gate.mjs`): compares the current hash of the artifacts the gate reads with that of the gate's last `veredito` receipt. `sem_recibo` and `desatualizado` warn; `sem_artefato` (nothing to judge) and `atual` do not. A blocked receipt is never written, so it does not count as a receipt.
+- **The receipt is now born from `conduzir`.** It writes the stage gate's real verdict (idempotent by the `recibo`); the agent does not need to call `registrar`. The owner's decision remains only in `registrarDecisao`.
+- **`dominio` reads the ADRs.** The gate reads `adrs.md` **and each `docs/adr/NNNN-*.md` it links** (`artefatos_citados`); a cited ADR that does not exist blocks. Editing just one ADR already makes the gate outdated.
+- `05_implement` stays out of the warning: its receipt is born in `fechar` of `/icm implement`.
+- The hook fails silently in `tool_result` and `agent_end` (it only stops warning) and closes in `tool_call`. To keep a single home, the list of protected paths lives in `jev-gates.json` (`conducao.guarda`).
+- Maintenance: editing the system itself (`docs/_index/`, hook, `jev-gates.json`) requires the owner's confirmation; without UI, edit outside the ICM session.
 
 ## Conduzir: `/icm`
 
-Um comando faz o ciclo curto: **painel → leitura → go do dono → despacho → gate de novo**.
+One command runs the short cycle: **panel → reading → owner's go → dispatch → gate again**.
 
-| Quem | Decide o quê |
+| Who | Decides what |
 | --- | --- |
-| Código (`conduzir`) | etapa atual (primeira não fechada), qual gate rodar, se falta handover, papéis candidatos da etapa, prontidão da issue, "próximo" |
-| Jev | probabilidades: critério de aceite, escopo, bloqueio pendente (dado o estado das etapas) e, entre os candidatos, o papel mais adequado |
-| Dono | go do despacho, papel final, dono de cada arquivo, gate humano |
+| Code (`conduzir`) | current stage (first not closed), which gate to run, whether a handover is missing, candidate roles for the stage, issue readiness, "next" |
+| Jev | probabilities: acceptance criterion, scope, pending block (given the stage state) and, among the candidates, the most suitable role |
+| Owner | dispatch go, final role, owner of each file, human gate |
 
-- **Issue pronta** = critério de aceite e escopo claros e sem bloqueio pendente, todos fora da faixa incerta. Fora disso é `INCERTA` ou `REFINAR`, e a ação é refinar com o dono, nunca despachar.
-- **Papel sugerido** é consultivo e restrito a `conducao.papeis_por_etapa`. Abaixo de `confianca_minima_papel`, ou com `nenhum`, fica sem sugestão e o dono escolhe. Isso mantém a D5 do handoff: o Jev não roteia o loop.
-- **Despacho** é o argumento do `task` montado em código (`P.task`): contexto compartilhado, uma tarefa por issue, o corpo da issue por `gh issue view` (não é copiado), os caminhos citados que existem. Só sai com o go do dono e com um dono declarado por arquivo.
-- O tracker é o GitHub Issues (D38). O condutor só lê (`gh issue list`); não cria nem fecha issue.
-- Nada do painel é persistido: estado é derivado a cada chamada (A4). Recibos só entram no `jev.jsonl` por `registrar`.
+- **Issue ready** = acceptance criterion and scope clear and no pending block, all outside the uncertain range. Outside that it is `INCERTA` or `REFINAR`, and the action is to refine with the owner, never dispatch.
+- **Suggested role** is advisory and restricted to `conducao.papeis_por_etapa`. Below `confianca_minima_papel`, or with `nenhum`, it stays without a suggestion and the owner chooses. This keeps handoff D5: Jev does not route the loop.
+- **Dispatch** is the `task` argument assembled in code (`P.task`): shared context, one task per issue, the issue body via `gh issue view` (it is not copied), the cited paths that exist. It only leaves with the owner's go and with a declared owner per file.
+- The tracker is GitHub Issues (D38). The conductor only reads (`gh issue list`); it neither creates nor closes issues.
+- Nothing from the panel is persisted: state is derived on each call (A4). Receipts only enter `jev.jsonl` through `registrar`.
 
-## Comandos do `/icm`
+## Commands of `/icm`
 
-`/icm [status|continue|duck|implement] [sprint | tema]`. Sem argumento é `status`, descrito acima.
+`/icm [status|continue|duck|implement] [sprint | tema]`. Without an argument it is `status`, described above.
 
-| Modo | O que faz | Quem fecha |
+| Mode | What it does | Who closes |
 | --- | --- | --- |
-| `continue` | avança **um passo** da etapa atual (produzir handover, resolver achados do gate) e para no gate humano | dono |
-| `duck` | conversa com o rubberduck, guarda o que vale em `docs/_backlog/` | dono posiciona (`git mv` para `01_grilling/inputs/` de sprint não iniciada) |
-| `implement` | loop sobre todas as issues da sprint em `05_implement` | dono confere e fecha a etapa |
+| `continue` | advances **one step** of the current stage (produce handover, resolve gate findings) and stops at the human gate | owner |
+| `duck` | talks with the rubberduck, keeps what is worth it in `docs/_backlog/` | owner positions it (`git mv` to `01_grilling/inputs/` of a not-started sprint) |
+| `implement` | loop over all the sprint's issues in `05_implement` | owner checks and closes the stage |
 
 ### Duck
 
-- A prova vem do `11-discovery-rubberduck` (somente leitura). O item só é gravado por `docs/_index/icm-duck.mjs`, que **abre cada âncora `arquivo:linha` e exige o trecho na linha**; âncora que não bate bloqueia a gravação. Sem âncora, o item vale como ideia (`sem_ancora: true`).
-- O Jev avalia o item (`pergunta_delimitada`, `afirma_sem_ancora`) e sugere um épico aberto, só acima de `confianca_minima_epico`. É consultivo.
-- Estado derivado: o item em `_backlog/` está sem sprint; `sh docs/_index/estado.sh` lista. Ver `docs/_backlog/README.md`.
+- The proof comes from `11-discovery-rubberduck` (read-only). The item is only written by `docs/_index/icm-duck.mjs`, which **opens each `arquivo:linha` anchor and requires the excerpt on the line**; an anchor that does not match blocks the write. Without an anchor, the item counts as an idea (`sem_ancora: true`).
+- Jev evaluates the item (`pergunta_delimitada`, `afirma_sem_ancora`) and suggests an open epic, only above `confianca_minima_epico`. It is advisory.
+- Derived state: the item in `_backlog/` has no sprint; `sh docs/_index/estado.sh` lists them. See `docs/_backlog/README.md`.
 
-### Implementar
+### Implement
 
-Fluxo: `plano` (read-only) → **go do dono** (`registrarGo`: papel e dono de caminhos por issue) → `passo` repetido → `fechar`.
+Flow: `plano` (read-only) → **owner's go** (`registrarGo`: role and owner of paths per issue) → `passo` repeated → `fechar`.
 
-- **Quais issues e em que ordem:** os `#N` citados em `04_tickets/handovers/tickets.md` (ou `issues` explícito); ordem topológica pelas `#N` da seção `Dependências` do corpo; critérios são os `- [ ]` da seção `Critérios de aceite`. Tudo extraído em código. Issue sem critério extraível, ciclo ou dependência aberta fora da sprint viram bloqueio, não palpite.
-- **Uma iteração** (`passo`): mede o estado do git (hash dos arquivos) → despacha o papel (padrão `42-implementation-backend`, relatório estruturado) → mede de novo → roda a verificação (`mix test`) → pergunta ao Jev, por critério, se há execução observada que o cubra → grava em `05_implement/handovers/jev.jsonl`.
-- **Veredito (código):** `ok` só com verificação em 0 e nenhum critério fora da faixa limpa. Teste falho ou critério sem prova → `reiterar`, com o feedback montado em código (critério, motivo, final da saída do teste) no prompt seguinte. Esgotadas as iterações (`max_iteracoes`) → `bloqueada`.
-- **Bloqueada, sem negociação:** escrita fora do dono declarado, em caminho de `protegidos` (inclui `jev-gates.json`, `docs/_index/`, ADRs, canon), commit do subagente, `bloqueios` declarados por ele, verificador ausente, subagente ou juiz falhando. A issue e as que dependem dela param; as independentes seguem.
-- **O que o loop nunca faz:** comitar, fechar issue, mudar `status:` de etapa, editar o que está protegido, trocar de ferramenta. Subagentes rodam em série, um dono por arquivo.
-- **Retomada:** o progresso é derivado do `jev.jsonl`; `/icm implement` numa sessão nova continua da próxima issue.
-- **Fechamento:** `fechar` gera `implementacao.md` a partir dos registros (recusa sobrescrever arquivo escrito à mão) e roda o gate `implementacao` sobre as issues `ok`. A verificação medida está na linha `verificação`; o texto dos critérios é declaração do subagente.
+- **Which issues and in what order:** the `#N` cited in `04_tickets/handovers/tickets.md` (or explicit `issues`); topological order by the `#N` of the body's `Dependências` section; criteria are the `- [ ]` of the `Critérios de aceite` section. Everything extracted in code. An issue with no extractable criterion, a cycle or an open dependency outside the sprint becomes a block, not a guess.
+- **One iteration** (`passo`): measures the git state (file hash) → dispatches the role (default `42-implementation-backend`, structured report) → measures again → runs the verification (`mix test`) → asks Jev, per criterion, whether there is observed execution that covers it → writes to `05_implement/handovers/jev.jsonl`.
+- **Verdict (code):** `ok` only with verification at 0 and no criterion outside the clean range. Failed test or criterion without proof → `reiterar`, with the feedback assembled in code (criterion, reason, end of the test output) in the next prompt. Once the iterations are exhausted (`max_iteracoes`) → `bloqueada`.
+- **Blocked, no negotiation:** writing outside the declared owner, to a `protegidos` path (includes `jev-gates.json`, `docs/_index/`, ADRs, canon), a subagent commit, `bloqueios` declared by it, a missing verifier, a failing subagent or judge. The issue and those depending on it stop; the independent ones continue.
+- **What the loop never does:** commit, close an issue, change a stage's `status:`, edit what is protected, switch tools. Subagents run in series, one owner per file.
+- **Resumption:** progress is derived from `jev.jsonl`; `/icm implement` in a new session continues from the next issue.
+- **Closing:** `fechar` generates `implementacao.md` from the records (refuses to overwrite a hand-written file) and runs the `implementacao` gate over the `ok` issues. The measured verification is on the `verification` line; the criteria text is the subagent's declaration.
 
-## Como o agente usa
+## How the agent uses it
 
-1. **Antes de implementar:** `estado` e, se o ticket tiver mais de um caminho, `opcoes`. Consulta de código ao Jev não existe: ele não gera código nem escolhe ação.
-2. **Antes de declarar uma etapa pronta:** o gate dela. Cada `ACHADO` e `INCERTO` é lido no artefato (`arquivo:linha`) e resolvido ou registrado, como em `docs/06_review/CONTEXT.md` passo 2. O veredito do Jev é evidência, não verdade.
-3. **Ao entregar ao dono:** citar o `recibo` e o que foi confirmado por leitura. O fechamento continua sendo do dono (`docs/PROCESS.md`, regra de avanço).
+1. **Before implementing:** `estado` and, if the ticket has more than one path, `opcoes`. There is no code consultation with Jev: it neither generates code nor chooses an action.
+2. **Before declaring a stage ready:** its gate. Each `FINDING` and `UNCERTAIN` is read in the artifact (`arquivo:linha`) and resolved or recorded, as in `docs/06_review/CONTEXT.md` step 2. Jev's verdict is evidence, not truth.
+3. **When delivering to the owner:** cite the `recibo` and what was confirmed by reading. Closing remains the owner's (`docs/PROCESS.md`, advancement rule).
 
-## Restrições
+## Constraints
 
-Valem inteiras as de `_research/AlephBible/chat.md:457-466`. As que o código impõe:
+Those of `_research/AlephBible/chat.md:457-466` apply in full. Those the code imposes:
 
-- O Jev só responde sim/não atômico (`bool`); combinação, ranking, contagem, ordem de etapas, existência de arquivo e comparação de data são código.
-- Nunca escreve `status:`, fecha etapa, gera texto de artefato nem escolhe a próxima ação.
-- Falha de chave, rede, artefato ausente, padrão sem item ou truncamento produz `bloqueado` ou `TRUNCADO` visível, nunca veredito favorável nem fallback para outro modelo.
-- Não alegar verificação não observada: o `texto` do gate imprime modelo, `calibrado` e recibo.
+- Jev only answers atomic yes/no (`bool`); combination, ranking, counting, stage order, file existence and date comparison are code.
+- It never writes `status:`, closes a stage, generates artifact text nor chooses the next action.
+- A key failure, network, missing artifact, pattern without an item or truncation produces `bloqueado` or a visible `TRUNCADO`, never a favourable verdict nor a fallback to another model.
+- Do not claim unobserved verification: the gate's `texto` prints the model, `calibrado` and the receipt.
 
-## Estado de calibração
+## Calibration state
 
-`calibrado: false` em `jev-gates.json`. Os limiares (`faixa_incerta` 0,3–0,7) são a faixa genérica da doc do Jev, não medida neste domínio. Enquanto não houver pares `(veredito, decisão humana)` suficientes em `jev.jsonl`, o `ACHADO` é pista para ler, não para bloquear. O catálogo do omp só expõe `jev-latest`; pinar `jev-1.13.0` fica pendente até haver limiar calibrado (restrição 6 do handoff).
+`calibrado: false` in `jev-gates.json`. The thresholds (`faixa_incerta` 0.3–0.7) are Jev's doc generic range, not measured in this domain. While there are not enough `(veredito, decisao_humana)` pairs in `jev.jsonl`, the `FINDING` is a lead to read, not to block. The omp catalogue only exposes `jev-latest`; pinning `jev-1.13.0` stays pending until there is a calibrated threshold (handoff constraint 6).
 
-## Privacidade
+## Privacy
 
-O `state` sai da máquina para a TypeSafe. Handover do EnochDB carrega decisão de produto; é a questão A5 aberta do handoff (`chat.md:449`). Não passe segredo, credencial ou dado pessoal ao gate; o `07_handoff` já proíbe isso nos handovers.
+The `state` leaves the machine for TypeSafe. An EnochDB handover carries product decision; it is handoff open question A5 (`chat.md:449`). Do not pass secrets, credentials or personal data to the gate; `07_handoff` already forbids that in handovers.

@@ -1,29 +1,29 @@
-# 03_spec — especificar o resultado
+# 03_spec — specify the outcome
 
-## Objetivo
+## Objective
 
-Converter decisões aprovadas em comportamento verificável, sem reabrir a entrevista nem acrescentar escopo por suposição.
+Convert approved decisions into verifiable behavior, without reopening the interview or adding scope by assumption.
 
-## Entradas
+## Inputs
 
-- `01_grilling/handovers/decisoes.md` e `02_domain/handovers/adrs.md` da sprint atual.
-- Glossário, canon e ADRs locais.
-- Tracker somente se houver uma decisão aprovada que o identifique.
+- `01_grilling/handovers/decisoes.md` and `02_domain/handovers/adrs.md` of the current sprint.
+- Glossary, canon and local ADRs.
+- Tracker only if there is an approved decision that identifies it.
 
-## Processo
+## Process
 
-1. Escreva user stories ou casos de uso e critérios de aceite observáveis. Toda decisão fechada no grilling aparece como requisito ou como fora de escopo.
-2. Registre os seams de verificação e prefira os existentes aos novos.
-3. Se já houver código, faça o mapeamento opcional entre cada requisito e seus pontos de implementação; guarde-o em `handovers/spec-tecnica.md`.
-4. Mantenha o corpo da spec em `handovers/spec.md`. O tracker é o definido em `../agents/README.md`: uma issue aponta para a spec pelo caminho, sem copiá-la, e esta pasta guarda os critérios que a execução precisa carregar.
-5. Atualize canon, ADRs ou glossário se a especificação revelar uma decisão nova; não trate uma hipótese como autorização.
+1. Write user stories or use cases and observable acceptance criteria. Every decision closed in the grilling appears as a requirement or as out of scope.
+2. Record the verification seams and prefer the existing ones over new ones.
+3. If there is already code, do the optional mapping between each requirement and its implementation points; keep it in `handovers/spec-tecnica.md`.
+4. Keep the body of the spec in `handovers/spec.md`. The tracker is the one defined in `../agents/README.md`: an issue points to the spec by path, without copying it, and this folder keeps the criteria the run needs to carry.
+5. Update canon, ADRs or glossary if the specification reveals a new decision; do not treat a hypothesis as authorization.
 
-## Saída e gate humano
+## Output and human gate
 
-Saída: `docs/_sprints/{sprint}/03_spec/handovers/spec.md` e, quando houver base de código, `spec-tecnica.md`. O dono verifica cobertura de todas as decisões, critérios testáveis e limites de escopo.
+Output: `docs/_sprints/{sprint}/03_spec/handovers/spec.md` and, when there is a codebase, `spec-tecnica.md`. The owner checks coverage of every decision, testable criteria and scope limits.
 
-Antes do gate humano, rode o gate `spec` ([`../agents/jev.md`](../agents/jev.md)): cada decisão do grilling precisa aparecer como requisito ou fora de escopo, e o `recibo` vai ao dono.
+Before the human gate, run the `spec` gate ([`../agents/jev.md`](../agents/jev.md)): every decision of the grilling must appear as a requirement or as out of scope, and the `receipt` goes to the owner.
 
-## Quando não se aplica
+## When it does not apply
 
-Pode ser `nao-aplicavel` quando uma spec completa e aprovada já é a entrada do trabalho. A ficha aponta essa spec; não crie uma segunda.
+It may be `nao-aplicavel` when a complete, approved spec is already the input of the work. The sheet points to that spec; do not create a second one.

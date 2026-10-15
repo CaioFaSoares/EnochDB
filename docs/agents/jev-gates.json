@@ -10,12 +10,12 @@
       "perguntas": [
         {
           "id": "resultado_sustentado",
-          "instrucoes": "A ficha declara um resultado para a etapa. O resultado declarado é sustentado pelo conteúdo dos handovers apresentados?",
+          "instrucoes": "The sheet declares a result for the stage. Is the declared result sustained by the content of the handovers presented?",
           "ruim_se": "baixo"
         },
         {
           "id": "handover_descreve_como_feito_o_pendente",
-          "instrucoes": "Os handovers descrevem como feito algo que o próprio texto mostra como não executado, pendente ou não verificado?",
+          "instrucoes": "Do the handovers describe as done something that the text itself shows as not executed, pending or unverified?",
           "ruim_se": "alto"
         }
       ]
@@ -29,12 +29,12 @@
       "perguntas": [
         {
           "id": "decisao_fechada_sem_origem",
-          "instrucoes": "Alguma decisão listada como fechada não indica nem que o dono a tomou nem que é iniciativa do agente?",
+          "instrucoes": "Does any decision listed as closed indicate neither that the owner made it nor that it is the agent's initiative?",
           "ruim_se": "alto"
         },
         {
           "id": "pergunta_aberta_dentro_de_fechada",
-          "instrucoes": "Alguma decisão listada como fechada ainda contém uma pergunta ou dúvida sem resposta?",
+          "instrucoes": "Does any decision listed as closed still contain an unanswered question or doubt?",
           "ruim_se": "alto"
         }
       ]
@@ -53,17 +53,17 @@
       "perguntas": [
         {
           "id": "adr_so_solucao",
-          "instrucoes": "Alguma ADR ou decisão consolidada descreve apenas a solução, sem explicar a dor que a motivou?",
+          "instrucoes": "Does any ADR or consolidated decision describe only the solution, without explaining the pain that motivated it?",
           "ruim_se": "alto"
         },
         {
           "id": "termo_sem_aprovacao",
-          "instrucoes": "Algum termo de glossário é apresentado como aprovado sem indicar a aprovação do dono?",
+          "instrucoes": "Is any glossary term presented as approved without indicating the owner's approval?",
           "ruim_se": "alto"
         },
         {
           "id": "decisao_sem_casa",
-          "instrucoes": "Alguma decisão consolidada não aponta o caminho do ADR, do glossário ou do canon onde passou a morar?",
+          "instrucoes": "Does any consolidated decision fail to point to the path of the ADR, the glossary or the canon where it came to live?",
           "ruim_se": "alto"
         }
       ]
@@ -83,12 +83,12 @@
       "perguntas": [
         {
           "id": "coberta",
-          "instrucoes": "O alvo traz requisito, critério de aceite ou item de fora de escopo que corresponde à decisão apresentada?",
+          "instrucoes": "Does the target bring a requirement, acceptance criterion or out-of-scope item that corresponds to the decision presented?",
           "ruim_se": "baixo"
         },
         {
           "id": "contradita",
-          "instrucoes": "O alvo contradiz a decisão apresentada?",
+          "instrucoes": "Does the target contradict the decision presented?",
           "ruim_se": "alto"
         }
       ]
@@ -106,7 +106,7 @@
       "perguntas": [
         {
           "id": "coberto_por_ticket",
-          "instrucoes": "O alvo traz ao menos um ticket cujo escopo ou critério de aceite entrega o requisito apresentado?",
+          "instrucoes": "Does the target bring at least one ticket whose scope or acceptance criterion delivers the requirement presented?",
           "ruim_se": "baixo"
         }
       ]
@@ -124,24 +124,24 @@
       "perguntas": [
         {
           "id": "coberto_com_execucao",
-          "instrucoes": "Para o critério apresentado, o alvo registra um comando executado ou um uso exercitado, com o resultado observado?",
+          "instrucoes": "For the criterion presented, does the target record an executed command or an exercised use, with the observed result?",
           "ruim_se": "baixo"
         },
         {
           "id": "so_leitura",
-          "instrucoes": "Para o critério apresentado, o alvo oferece apenas leitura de código ou de documento como prova?",
+          "instrucoes": "For the criterion presented, does the target offer only reading of code or of a document as proof?",
           "ruim_se": "alto"
         }
       ],
       "perguntas_globais": [
         {
           "id": "alega_sem_provar",
-          "instrucoes": "O texto declara algo pronto, verificado ou aprovado sem mostrar o comando executado nem o resultado observado?",
+          "instrucoes": "Does the text declare something ready, verified or approved without showing the executed command nor the observed result?",
           "ruim_se": "alto"
         },
         {
           "id": "declara_execucao",
-          "instrucoes": "O texto registra ao menos um comando de teste ou de uso executado, com o resultado observado?",
+          "instrucoes": "Does the text record at least one test or usage command executed, with the observed result?",
           "ruim_se": "baixo"
         }
       ]
@@ -156,17 +156,17 @@
       "perguntas": [
         {
           "id": "achado_sem_evidencia",
-          "instrucoes": "Algum achado da revisão é registrado sem evidência, isto é, sem arquivo, linha, comando ou resultado observado?",
+          "instrucoes": "Is any review finding recorded without evidence, that is, without file, line, command or observed result?",
           "ruim_se": "alto"
         },
         {
           "id": "achado_sem_destino",
-          "instrucoes": "Algum achado relevante não indica se foi corrigido ou se virou item de trabalho?",
+          "instrucoes": "Does any relevant finding fail to indicate whether it was fixed or became a work item?",
           "ruim_se": "alto"
         },
         {
           "id": "verificacao_alegada_sem_comando",
-          "instrucoes": "O texto do PR cita verificação como feita sem o comando executado?",
+          "instrucoes": "Does the PR text cite verification as done without the executed command?",
           "ruim_se": "alto"
         }
       ]
@@ -180,17 +180,17 @@
       "perguntas": [
         {
           "id": "exige_memoria_da_sessao",
-          "instrucoes": "Um leitor sem acesso à sessão que produziu o texto precisaria de contexto que o texto não traz para começar a missão?",
+          "instrucoes": "Would a reader without access to the session that produced the text need context that the text does not bring in order to start the mission?",
           "ruim_se": "alto"
         },
         {
           "id": "missao_clara",
-          "instrucoes": "O texto declara uma missão concreta para a próxima sessão e o que não deve ser feito?",
+          "instrucoes": "Does the text declare a concrete mission for the next session and what must not be done?",
           "ruim_se": "baixo"
         },
         {
           "id": "alega_execucao_nao_observada",
-          "instrucoes": "O texto afirma como executado algo que o próprio texto não sustenta com evidência?",
+          "instrucoes": "Does the text state as executed something that the text itself does not sustain with evidence?",
           "ruim_se": "alto"
         }
       ]
@@ -240,6 +240,14 @@
       "ficha_de_etapa": "^docs/_sprints/[^/]+/\\d{2}_[a-z]+/CONTEXT\\.md$",
       "status_que_pede_dono": "status:\\s*fechado"
     },
+    "graphify": {
+      "ativo": true,
+      "timeout_s": 120,
+      "orcamento_contexto_tokens": 1500,
+      "max_sementes": 5,
+      "profundidade_impacto": 1,
+      "max_impacto": 15
+    },
     "implementacao": {
       "papel_padrao": "42-implementation-backend",
       "max_iteracoes": 3,
@@ -254,7 +262,8 @@
         "_build/",
         "deps/",
         ".elixir_ls/",
-        "erl_crash.dump"
+        "erl_crash.dump",
+        "graphify-out/"
       ],
       "protegidos": [
         ".git/",
@@ -272,12 +281,12 @@
       "perguntas": [
         {
           "id": "pergunta_delimitada",
-          "instrucoes": "O item formula uma única dúvida ou ideia delimitada, em vez de vários assuntos misturados?",
+          "instrucoes": "Does the item formulate a single delimited doubt or idea, instead of several mixed subjects?",
           "ruim_se": "baixo"
         },
         {
           "id": "afirma_sem_ancora",
-          "instrucoes": "O item afirma como fato algo que nenhuma âncora arquivo:linha do próprio item sustenta?",
+          "instrucoes": "Does the item state as fact something that no arquivo:linha anchor of the item itself sustains?",
           "ruim_se": "alto"
         }
       ]
@@ -285,22 +294,22 @@
     "perguntas_issue": [
       {
         "id": "tem_criterio_de_aceite",
-        "instrucoes": "O corpo da issue traz critérios de aceite observáveis, isto é, algo que se possa verificar ao terminar?",
+        "instrucoes": "Does the issue body bring observable acceptance criteria, that is, something that can be verified upon finishing?",
         "ruim_se": "baixo"
       },
       {
         "id": "escopo_delimitado",
-        "instrucoes": "A issue delimita o que entra e o que fica de fora do trabalho?",
+        "instrucoes": "Does the issue delimit what is in and what is out of the work?",
         "ruim_se": "baixo"
       },
       {
         "id": "declara_bloqueio",
-        "instrucoes": "A issue depende de algo que, segundo o estado_das_etapas informado, ainda não aconteceu? Dependência cuja etapa já está fechada não conta.",
+        "instrucoes": "Does the issue depend on something that, according to the informed estado_das_etapas, has not happened yet? A dependency whose stage is already closed does not count.",
         "ruim_se": "alto"
       },
       {
         "id": "pede_codigo",
-        "instrucoes": "A issue pede escrever ou alterar código-fonte, e não apenas documentação?",
+        "instrucoes": "Does the issue ask to write or change source code, and not only documentation?",
         "ruim_se": null
       }
     ]

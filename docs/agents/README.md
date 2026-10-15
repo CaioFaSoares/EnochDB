@@ -1,17 +1,21 @@
-# Convenções para agentes — EnochDB
+# Conventions for agents — EnochDB
 
-Antes de explorar ou alterar o projeto, leia [`../../CONTEXT.md`](../../CONTEXT.md), [`../canon.md`](../canon.md) e os ADRs em [`../adr/`](../adr/) que tocam a área. Se um arquivo ainda não existir ou estiver sem termos, siga com os fatos disponíveis; não invente uma decisão só para preencher a estrutura.
+Before exploring or changing the project, read [`../../CONTEXT.md`](../../CONTEXT.md), [`../canon.md`](../canon.md) and the ADRs in [`../adr/`](../adr/) that touch the area. If a file does not exist yet or has no terms, carry on with the available facts; do not invent a decision just to fill the structure.
 
-Use o vocabulário aprovado no glossário em nomes, specs e testes. Se um termo necessário estiver ausente, anote a lacuna para a etapa de domínio. Se a mudança contradisser um ADR, exponha o conflito e peça uma decisão explícita; não reescreva o histórico em silêncio.
+Use the vocabulary approved in the glossary in names, specs and tests. If a needed term is missing, note the gap for the domain stage. If the change contradicts an ADR, expose the conflict and ask for an explicit decision; do not silently rewrite the history.
 
-## Épicos e sprints
+## Epics and sprints
 
-O trabalho é agrupado por épicos em [`../epicos/`](../epicos/); cada sprint aponta para o seu no campo `epico:` da ficha em `docs/_sprints/{sprint}/CONTEXT.md`. O estado derivado sai de `sh docs/_index/estado.sh`; não replique status de épico ou de sprint em outro arquivo.
+The work is grouped into epics in [`../epicos/`](../epicos/); each sprint points to its own in the `epico:` field of the sheet in `docs/_sprints/{sprint}/CONTEXT.md`. The derived state comes from `sh docs/_index/estado.sh`; do not replicate the status of an epic or a sprint in another file.
 
-## Julgamento (Jev)
+## Judgment (Jev)
 
-Antes de declarar uma etapa pronta, e antes de implementar quando houver mais de um caminho, consulte os gates de julgamento: [`jev.md`](jev.md). O Jev é consultivo; achado vira leitura do artefato, e fechar etapa continua sendo do dono. Perguntas e limiares moram só em [`jev-gates.json`](jev-gates.json).
+Before declaring a stage ready, and before implementing when there is more than one path, consult the judgment gates: [`jev.md`](jev.md). Jev is advisory; a finding becomes a reading of the artifact, and closing a stage remains the owner's job. Questions and thresholds live only in [`jev-gates.json`](jev-gates.json).
+
+## Repository graph (graphify)
+
+Before opening or grepping a raw file, ask the graph: `graphify query "<question>"`, `graphify explain "<node>"`, `graphify affected "<node>"`. It is derived and approximate — it points to where to look and never replaces the `arquivo:linha` evidence. How it is built, what it does in the ICM and how to turn it off: [`graphify.md`](graphify.md).
 
 ## Tracker
 
-O tracker é o GitHub Issues do repositório `CaioFaSoares/EnochDB` (decisão D38 em [`../_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md`](../_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md)). As etapas `03_spec` e `04_tickets` publicam lá. Uma issue aponta para os documentos pelo caminho em vez de copiar o conteúdo, e a arquitetura de pastas está em [`../arquitetura.md`](../arquitetura.md). Convenção de labels e de dependências entre issues ainda não foi decidida: não invente uma; as labels padrão do GitHub bastam por enquanto.
+The tracker is the GitHub Issues of the repository `CaioFaSoares/EnochDB` (decision D38 in [`../_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md`](../_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md)). The `03_spec` and `04_tickets` stages publish there. An issue points to the documents by path instead of copying the content, and the folder architecture is in [`../arquitetura.md`](../arquitetura.md). The convention for labels and for dependencies between issues has not been decided yet: do not invent one; the default GitHub labels are enough for now.

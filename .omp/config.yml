@@ -4,14 +4,22 @@
 # este arquivo só tem efeito quando o cwd é este diretório (ou um descendente).
 # O roster de papéis (.aleph/agents/) é compartilhado e não carrega modelo no
 # contrato; a escolha de modelo por ambiente mora aqui.
+#
+# Divisão de trabalho:
+#   Opus     — só a sessão principal: conversa e planejamento com o dono. Não é
+#              usado em subagente.
+#   Sonnet   — advisor do DeepSeek e revisor: julga, revisa, fatia e integra.
+#   DeepSeek — a maioria das tarefas: geração de código, execução mecânica,
+#              varredura e leitura. É barato; o Sonnet cobre o que ele erra.
 
 modelRoles:
-  # Sessão principal: Opus. O ICM, o Jev e a orquestração chamam os papéis por `task`.
+  # Sessão principal e planejamento: Opus.
   default: anthropic/claude-opus-5-5
-  # Topo consultado (planejamento arquitetural): Opus.
   plan: anthropic/claude-opus-5-5
-  # Advisor: Opus.
-  advisor: anthropic/claude-opus-5-5:high
+  # Advisor: Sonnet, consultado pelo DeepSeek antes de decisões ou ao travar.
+  advisor: anthropic/claude-sonnet-5-5:high
+  # Subagente genérico (`task` sem papel do roster): DeepSeek.
+  task: opencode-go/deepseek-v4.1-flash
   # Judge: Jev (TypeSafe System One), nativo. Alimenta o `judge()` do eval e os
   # gates de julgamento do ICM (docs/agents/jev.md). Sem fallback para chat
   # model: se a chave do typesafe falhar, o gate devolve `bloqueado`.
@@ -23,26 +31,26 @@ advisor:
   enabled: true
 
 # Roteamento por papel. `task.agentModelOverrides` tem precedência sobre o
-# frontmatter do papel. O roster hoje fixa `model: deepseek` em todos os 17
-# arquivos, então a herança do padrão não acontece: cada papel precisa do
-# override explícito abaixo.
+# frontmatter do papel. O roster fixa `model: deepseek` nos arquivos, então a
+# herança do padrão não acontece: cada um dos 18 papéis precisa do override
+# explícito abaixo.
 task:
   agentModelOverrides:
-    # Topo — decidem, revisam decisão e fatiam o trabalho (Opus).
-    00-orchestration-icm: anthropic/claude-opus-5-5
-    01-orchestration-reviewer: anthropic/claude-opus-5-5
-    20-architecture-keeper: anthropic/claude-opus-5-5
-    21-architecture-data: anthropic/claude-opus-5-5
-    30-ticketing-slicer: anthropic/claude-opus-5-5
-    # Camada intermediária — leitura, estado e fechamento (Sonnet).
-    02-orchestration-status: anthropic/claude-sonnet-5-5
-    10-discovery-backlog: anthropic/claude-sonnet-5-5
-    11-discovery-rubberduck: anthropic/claude-sonnet-5-5
-    52-integration-poc: anthropic/claude-sonnet-5-5
-    53-doubt-explorer: anthropic/claude-sonnet-5-5
-    54-code-explorer: anthropic/claude-sonnet-5-5
+    # Sonnet — orquestra, revisa decisão, revisa entrega e fatia o trabalho.
+    00-orchestration-icm: anthropic/claude-sonnet-5-5
+    01-orchestration-reviewer: anthropic/claude-sonnet-5-5
+    20-architecture-keeper: anthropic/claude-sonnet-5-5
+    21-architecture-data: anthropic/claude-sonnet-5-5
+    30-ticketing-slicer: anthropic/claude-sonnet-5-5
     60-sprint-review: anthropic/claude-sonnet-5-5
-    # Workers — faixa de implementação (DeepSeek v4.1 flash do opencode).
+    # DeepSeek v4.1 flash (opencode) — leitura, varredura e experimento.
+    02-orchestration-status: opencode-go/deepseek-v4.1-flash
+    10-discovery-backlog: opencode-go/deepseek-v4.1-flash
+    11-discovery-rubberduck: opencode-go/deepseek-v4.1-flash
+    52-integration-poc: opencode-go/deepseek-v4.1-flash
+    53-doubt-explorer: opencode-go/deepseek-v4.1-flash
+    54-code-explorer: opencode-go/deepseek-v4.1-flash
+    # DeepSeek v4.1 flash (opencode) — faixa de implementação.
     40-implementation-loop: opencode-go/deepseek-v4.1-flash
     41-implementation-captain: opencode-go/deepseek-v4.1-flash
     42-implementation-backend: opencode-go/deepseek-v4.1-flash

@@ -1,26 +1,26 @@
-# 07_handoff — preparar a próxima sessão
+# 07_handoff — prepare the next session
 
-## Objetivo
+## Objective
 
-Deixar um próximo agente ou colaborador começar sem depender da memória de quem encerrou a sprint.
+Let a next agent or collaborator start without depending on the memory of whoever closed the sprint.
 
-## Entradas
+## Inputs
 
-- Handovers das etapas desta sprint.
-- Canon, ADRs, glossário e tickets nos locais originais.
+- Handovers of the stages of this sprint.
+- Canon, ADRs, glossary and tickets in their original locations.
 - `../_templates/handover.md`.
 
-## Processo
+## Process
 
-1. Declare a missão provável da próxima sessão e o que não deve ser feito.
-2. Resuma o estado atual com caminhos e evidências; não reescreva spec, tickets ou decisões.
-3. Registre restrições que exigem decisão do dono, riscos e perguntas ainda abertas.
-4. Liste passos concretos, ferramentas necessárias e skills realmente úteis, sem afirmar que foram executadas.
-5. Remova de handover qualquer segredo, credencial ou dado pessoal.
-6. Atualize o índice de sprints apenas depois que as fichas mostrarem o estado observado.
+1. State the likely mission of the next session and what must not be done.
+2. Summarize the current state with paths and evidence; do not rewrite spec, tickets or decisions.
+3. Record constraints that require an owner's decision, risks and questions still open.
+4. List concrete steps, needed tools and skills that are really useful, without claiming they were executed.
+5. Remove from the handover any secret, credential or personal data.
+6. Update the sprint index only after the sheets show the observed state.
 
-## Saída e gate humano
+## Output and human gate
 
-Saída: `docs/_sprints/{sprint}/07_handoff/handovers/handoff.md`. O dono lê como se não tivesse participado do trabalho. Se precisar de contexto ausente, complete o handover antes de fechar a etapa.
+Output: `docs/_sprints/{sprint}/07_handoff/handovers/handoff.md`. The owner reads it as if he had not taken part in the work. If he needs missing context, complete the handover before closing the stage.
 
-Antes do gate humano, rode o gate `handoff` ([`../agents/jev.md`](../agents/jev.md)), que testa o contexto zero, e leve o `recibo` ao dono.
+Before the human gate, run the `handoff` gate ([`../agents/jev.md`](../agents/jev.md)), which tests the zero context, and take the `receipt` to the owner.

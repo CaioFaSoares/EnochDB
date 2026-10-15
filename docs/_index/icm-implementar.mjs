@@ -1,24 +1,24 @@
-// Loop de implementação do ICM do EnochDB (`/icm implement`). Ver docs/agents/jev.md §Implementar.
+// EnochDB's ICM implementation loop (`/icm implement`). See docs/agents/jev.md §Implement.
 //
-// Uma chamada de `passo` executa UMA iteração de UMA issue: despacha o dono da
-// fatia, mede o que ele realmente alterou, roda a verificação, pergunta ao Jev
-// se cada critério de aceite foi coberto com execução observada e grava o
-// resultado. O orquestrador chama `passo` até devolver `fim` ou `bloqueado`.
-// O progresso é derivado de `05_implement/handovers/jev.jsonl` (A4): quem retoma
-// a sessão continua de onde o arquivo parou.
+// One call to `passo` runs ONE iteration of ONE issue: it dispatches the slice's
+// owner, measures what they actually changed, runs the verification, asks Jev
+// whether each acceptance criterion was covered with observed execution, and
+// records the result. The orchestrator calls `passo` until it returns `fim` or `bloqueado`.
+// Progress is derived from `05_implement/handovers/jev.jsonl` (A4): whoever resumes
+// the session continues from where the file stopped.
 //
 //   const I = await import(`${process.cwd()}/docs/_index/icm-implementar.mjs`);
-//   const p = await I.plano({ sprint });          // read-only: ordem, critérios, proposta de go
-//   I.registrarGo({ sprint, itens: [...] });      // só depois do go do dono
+//   const p = await I.plano({ sprint });          // read-only: order, criteria, go proposal
+//   I.registrarGo({ sprint, itens: [...] });      // only after the owner's go
 //   const r = await I.passo({ judge, judgeBatch, agent }, { sprint });
-//   const f = await I.fechar({ judge, judgeBatch }, { sprint });  // quando `fim`
+//   const f = await I.fechar({ judge, judgeBatch }, { sprint });  // when `fim`
 //
-// Quem decide é código: ordem, dono dos arquivos, escopo realmente escrito,
-// resultado da verificação, limite de iterações e o veredito final. O Jev só dá
-// a probabilidade de cada critério estar coberto por execução observada.
-// Falha de judge, de verificador, de subagente ou de escopo é `bloqueada`,
-// nunca `ok`. Nada aqui comita, fecha issue, muda `status:` nem edita o
-// que está em `implementacao.protegidos`.
+// Code decides: order, file ownership, scope actually written, verification
+// result, iteration limit and the final verdict. Jev only gives the probability
+// of each criterion being covered by observed execution.
+// A judge, verifier, subagent or scope failure is `bloqueada`,
+// never `ok`. Nothing here commits, closes an issue, changes `status:` or edits
+// what is in `implementacao.protegidos`.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -37,6 +37,7 @@ import {
   texto as textoGate,
 } from "./jev-gate.mjs";
 import { camel, caminhosCitados, contextoCompartilhado, etapaAtual } from "./icm-conduzir.mjs";
+import * as grafo from "./graphify.mjs";
 
 const MARCA = "<!-- gerado por docs/_index/icm-implementar.mjs a partir de handovers/jev.jsonl -->";
 const CHECK = /^\s*[-*]\s+\[[ xX]\]\s+(.*)$/;
@@ -66,7 +67,8 @@ export const RELATORIO = {
       type: "array",
       items: { type: "object", required: ["comando", "resultado"], properties: { comando: { type: "string" }, resultado: { type: "string" } } },
     },
-    bloqueios: { type: "array", items: { type: "string" } },
+    bloqueios: { type: "array", items: { type: "string" }, description: "Only a real blocker: something that prevents delivering the slice and that you cannot resolve. Must be empty when nothing blocks." },
+    notas: { type: "array", items: { type: "string" }, description: "Observations, warnings and pointers for the owner; they never become a blocker." },
   },
 };
 
@@ -98,10 +100,33 @@ function caminhoValido(c) {
   return typeof c === "string" && c.length > 0 && !c.startsWith("/") && !c.split("/").includes("..") && !c.includes("\0");
 }
 
-/** Estado derivado de cada issue da sprint a partir dos registros. */
-function estadoDe(regs, numero) {
-  const ultima = [...regs].reverse().find(r => r.tipo === "implementacao_iteracao" && r.issue === numero);
+/**
+ * Why a blocked issue can be reopened with `reabrir: [N]` (owner-only act): `"prosa"` when
+ * the block came only from the report's `bloqueios` field, `"incerto"` when it came only from
+ * uncertain Jev findings that exhausted the iterations. It never covers a contract violation
+ * (HEAD, owner, protected path), a Jev failure or a verification failure. `null` = not reopenable.
+ */
+function reabravel(u) {
+  if (!u || u.veredito !== "bloqueada") return null;
+  const motivos = u.motivos ?? [];
+  if (!motivos.length) return null;
+  if (!(u.testes ?? []).every(t => t.estado !== "executado" || t.codigo === 0)) return null;
+  if (motivos.every(m => m.startsWith("subagente bloqueou:"))) return "prosa";
+  const soIncerto = (u.achados ?? []).length > 0 && u.achados.every(a => a.classe === "incerto");
+  const motivosSoIncerto = motivos.every(m => m.startsWith("esgotou ") || /^.+: [a-z_]+=[\d.]+ \([a-z]+\)$/.test(m));
+  return soIncerto && motivosSoIncerto ? "incerto" : null;
+}
+
+/** State derived for each issue of the sprint from the records. `reabrir` is an owner-only act. */
+function estadoDe(regs, numero, reabrir = []) {
+  const doIssue = [...regs].reverse().filter(r => r.tipo === "implementacao_iteracao" && r.issue === numero);
+  const ultima = doIssue[0];
   if (!ultima) return { estado: "pendente", iteracoes: 0, ultima: null };
+  const origem = reabrir.includes(numero) ? reabravel(ultima) : null;
+  if (origem) {
+    // The reopening starts a new iteration quota; the history stays in `implementacao_reabertura`.
+    return { estado: "reaberta", iteracoes: 0, ultima: doIssue[1] ?? null, reaberta: ultima, origem };
+  }
   const estado = ultima.veredito === "ok" ? "ok" : ultima.veredito === "bloqueada" ? "bloqueada" : "em-curso";
   return { estado, iteracoes: ultima.iteracao, ultima };
 }
@@ -110,9 +135,9 @@ function carregarIssues(sprint, numerosArg) {
   let numeros = numerosArg;
   if (!numeros) {
     const t = lerRel(`docs/_sprints/${sprint}/04_tickets/handovers/tickets.md`);
-    if (t === null) return { falha: "sem 04_tickets/handovers/tickets.md: a lista de issues da sprint são os `#N` citados nele (ou passe `issues`)" };
+    if (t === null) return { falha: "no 04_tickets/handovers/tickets.md: the sprint's issue list is the `#N` cited in it (or pass `issues`)" };
     numeros = [...new Set([...t.matchAll(/(?<![\w/])#(\d+)\b/g)].map(m => Number(m[1])))];
-    if (numeros.length === 0) return { falha: "tickets.md não cita nenhuma issue como `#N`; registre o número de cada issue publicada" };
+    if (numeros.length === 0) return { falha: "tickets.md cites no issue as `#N`; record the number of each published issue" };
   }
   let todas;
   try {
@@ -122,19 +147,19 @@ function carregarIssues(sprint, numerosArg) {
       }),
     );
   } catch (e) {
-    return { falha: `gh issue list falhou: ${String(e.stderr || e.message).trim().split("\n")[0]}` };
+    return { falha: `gh issue list failed: ${String(e.stderr || e.message).trim().split("\n")[0]}` };
   }
   const porNumero = new Map(todas.map(i => [i.number, i]));
   const ausentes = numeros.filter(n => !porNumero.has(n));
-  if (ausentes.length) return { falha: `issues inexistentes no tracker: ${ausentes.map(n => `#${n}`).join(", ")}` };
+  if (ausentes.length) return { falha: `issues that do not exist in the tracker: ${ausentes.map(n => `#${n}`).join(", ")}` };
   return { numeros, porNumero };
 }
 
 /**
- * Plano read-only. Devolve a ordem (topológica por dependências declaradas),
- * os critérios extraídos em código, o estado derivado e uma proposta de go.
+ * Read-only plan. Returns the order (topological by declared dependencies),
+ * the criteria extracted in code, the derived state and a go proposal.
  */
-export async function plano({ sprint, issues: numerosArg }) {
+export async function plano({ sprint, issues: numerosArg, reabrir = [] }) {
   const cfg = carregarConfig();
   const cfgI = cfg.conducao.implementacao;
   const p = { sprint, bloqueios: [], issues: [], proxima: null, go: null, max_iteracoes: cfgI.max_iteracoes };
@@ -142,7 +167,7 @@ export async function plano({ sprint, issues: numerosArg }) {
   const atual = etapaAtual(fatos);
   if (fatos.falhas.length) p.bloqueios.push(...fatos.falhas);
   if (!atual || atual.nome !== "05_implement") {
-    p.bloqueios.push(`a etapa atual é ${atual?.nome ?? "nenhuma"}; o loop só roda em 05_implement (04_tickets precisa estar fechada ou não aplicável)`);
+    p.bloqueios.push(`the current step is ${atual?.nome ?? "none"}; the loop only runs in 05_implement (04_tickets must be closed or not applicable)`);
     return p;
   }
   const carregadas = carregarIssues(sprint, numerosArg);
@@ -167,11 +192,11 @@ export async function plano({ sprint, issues: numerosArg }) {
       caminhos: caminhosCitados(i.body).filter(c => !c.includes("{") && existsSync(join(RAIZ, c))),
       papel: go?.papel ?? cfgI.papel_padrao,
       dono: go?.dono ?? [],
-      ...estadoDe(regs, n),
+      ...estadoDe(regs, n, reabrir),
       ...(i.state === "CLOSED" && !regs.some(r => r.tipo === "implementacao_iteracao" && r.issue === n) ? { estado: "fechada" } : {}),
     };
   });
-  // ordem topológica estável por número; ciclo e dependência externa aberta são bloqueios
+  // stable topological order by number; a cycle and an open external dependency are blockers
   const porNum = new Map(itens.map(i => [i.numero, i]));
   const ordem = [];
   const visto = new Set();
@@ -179,7 +204,7 @@ export async function plano({ sprint, issues: numerosArg }) {
   const visitar = i => {
     if (visto.has(i.numero)) return;
     if (pilha.has(i.numero)) {
-      p.bloqueios.push(`ciclo de dependências envolvendo #${i.numero}`);
+      p.bloqueios.push(`dependency cycle involving #${i.numero}`);
       return;
     }
     pilha.add(i.numero);
@@ -191,13 +216,13 @@ export async function plano({ sprint, issues: numerosArg }) {
   [...itens].sort((a, b) => a.numero - b.numero).forEach(visitar);
   for (const i of ordem) {
     if (i.criterios.length === 0) {
-      i.bloqueio = "issue sem critérios de aceite extraíveis (`- [ ]` na seção de critérios)";
+      i.bloqueio = "issue with no extractable acceptance criteria (`- [ ]` in the criteria section)";
     }
     const externas = i.deps.filter(d => !noSprint.has(d));
     for (const d of externas) {
       const s = carregadas.porNumero.get(d)?.state;
-      if (s === undefined) i.bloqueio = `depende de #${d}, que não está na sprint nem foi consultada; passe-a em \`issues\` ou resolva`;
-      else if (s === "OPEN") i.bloqueio = `depende de #${d}, aberta e fora da sprint`;
+      if (s === undefined) i.bloqueio = `depends on #${d}, which is neither in the sprint nor queried; pass it in \`issues\` or resolve it`;
+      else if (s === "OPEN") i.bloqueio = `depends on #${d}, open and outside the sprint`;
     }
   }
   const concluida = n => ["ok", "fechada"].includes(porNum.get(n)?.estado) || (!noSprint.has(n) && carregadas.porNumero.get(n)?.state === "CLOSED");
@@ -206,7 +231,7 @@ export async function plano({ sprint, issues: numerosArg }) {
     if (i.bloqueio) continue;
     const dep = i.deps.find(d => porNum.get(d)?.estado === "bloqueada" || porNum.get(d)?.bloqueio);
     if (dep) {
-      i.bloqueio = `depende de #${dep}, que está ${porNum.get(dep).estado === "bloqueada" ? "bloqueada" : "bloqueada por dependência ou critério"}`;
+      i.bloqueio = `depends on #${dep}, which is ${porNum.get(dep).estado === "bloqueada" ? "bloqueada" : "blocked by dependency or criterion"}`;
       continue;
     }
     if (i.deps.every(concluida) && !p.proxima) p.proxima = i;
@@ -220,19 +245,19 @@ export async function plano({ sprint, issues: numerosArg }) {
   return p;
 }
 
-/** Grava o go do dono: um papel e um dono de caminhos por issue. Só depois de o dono confirmar. */
+/** Records the owner's go: one role and one path owner per issue. Only after the owner confirms. */
 export function registrarGo({ sprint, itens, max_iteracoes }) {
   const cfgI = carregarConfig().conducao.implementacao;
-  if (!itens?.length) throw new Error("go sem itens");
+  if (!itens?.length) throw new Error("go with no items");
   const vistos = new Set();
   for (const it of itens) {
-    if (!Number.isInteger(it.numero) || vistos.has(it.numero)) throw new Error(`issue inválida ou repetida: ${it.numero}`);
+    if (!Number.isInteger(it.numero) || vistos.has(it.numero)) throw new Error(`invalid or repeated issue: ${it.numero}`);
     vistos.add(it.numero);
-    if (!it.papel || !existsSync(join(RAIZ, ".omp", "agents", `${it.papel}.md`))) throw new Error(`#${it.numero}: papel inexistente no roster: ${it.papel}`);
-    if (!it.dono?.length) throw new Error(`#${it.numero}: sem dono de arquivos; declare ao menos um caminho`);
+    if (!it.papel || !existsSync(join(RAIZ, ".omp", "agents", `${it.papel}.md`))) throw new Error(`#${it.numero}: role absent from the roster: ${it.papel}`);
+    if (!it.dono?.length) throw new Error(`#${it.numero}: no file owner; declare at least one path`);
     for (const c of it.dono) {
-      if (!caminhoValido(c)) throw new Error(`#${it.numero}: caminho inválido: ${c}`);
-      if (dentro(c, cfgI.protegidos) || cfgI.protegidos.some(p => p.startsWith(c))) throw new Error(`#${it.numero}: caminho protegido não pode ser dono: ${c}`);
+      if (!caminhoValido(c)) throw new Error(`#${it.numero}: invalid path: ${c}`);
+      if (dentro(c, cfgI.protegidos) || cfgI.protegidos.some(p => p.startsWith(c))) throw new Error(`#${it.numero}: a protected path cannot be owned: ${c}`);
     }
   }
   const max = max_iteracoes ?? cfgI.max_iteracoes;
@@ -241,10 +266,10 @@ export function registrarGo({ sprint, itens, max_iteracoes }) {
 }
 
 function assinatura(abs) {
-  if (!existsSync(abs) && !lstatSync(abs, { throwIfNoEntry: false })) return "removido";
+  if (!existsSync(abs) && !lstatSync(abs, { throwIfNoEntry: false })) return "removed";
   const s = lstatSync(abs);
   if (s.isSymbolicLink()) return `link:${readlinkSync(abs)}`;
-  if (s.isDirectory()) return "diretorio";
+  if (s.isDirectory()) return "directory";
   return sha(readFileSync(abs));
 }
 
@@ -267,7 +292,7 @@ function verificar(cfgI) {
   const resultados = [];
   for (const v of cfgI.verificacao) {
     if (v.requer && !existsSync(join(RAIZ, v.requer))) {
-      resultados.push({ comando: v.comando, estado: "sem_verificador", motivo: `${v.requer} não existe` });
+      resultados.push({ comando: v.comando, estado: "sem_verificador", motivo: `${v.requer} does not exist` });
       continue;
     }
     try {
@@ -277,41 +302,42 @@ function verificar(cfgI) {
       resultados.push({ comando: v.comando, estado: "executado", codigo: 0, saida: saida.slice(-cfgI.limite_saida_chars) });
     } catch (e) {
       const saida = `${e.stdout ?? ""}${e.stderr ?? ""}`.slice(-cfgI.limite_saida_chars);
-      if (e.status === 127 || e.code === "ENOENT") resultados.push({ comando: v.comando, estado: "sem_verificador", motivo: `comando indisponível: ${saida.trim().split("\n").pop() || e.message}` });
-      else if (e.killed || e.signal) resultados.push({ comando: v.comando, estado: "sem_verificador", motivo: `tempo esgotado (${cfgI.timeout_verificacao_s}s)` });
+      if (e.status === 127 || e.code === "ENOENT") resultados.push({ comando: v.comando, estado: "sem_verificador", motivo: `command unavailable: ${saida.trim().split("\n").pop() || e.message}` });
+      else if (e.killed || e.signal) resultados.push({ comando: v.comando, estado: "sem_verificador", motivo: `timed out (${cfgI.timeout_verificacao_s}s)` });
       else resultados.push({ comando: v.comando, estado: "executado", codigo: e.status ?? 1, saida });
     }
   }
   return resultados;
 }
 
-function briefing(p, issue, feedback, cfgI) {
-  const caminhos = issue.caminhos.length ? issue.caminhos.map(c => `\`${c}\``).join(", ") : "nenhum citado";
+function briefing(p, issue, feedback, cfgI, pista) {
+  const caminhos = issue.caminhos.length ? issue.caminhos.map(c => `\`${c}\``).join(", ") : "none cited";
   const verifs = cfgI.verificacao.map(v => `\`${v.comando}\``).join(", ");
   const partes = [
     contextoCompartilhado(p.sprint, "05_implement"),
     "",
     "# Target",
-    `Issue #${issue.numero}: ${issue.titulo}. Leia o corpo com \`gh issue view ${issue.numero}\` (cwd na raiz do repositório); ele não foi copiado aqui. A seção de critérios de aceite tem ${issue.criterios.length} item(ns).`,
-    `Caminhos citados na issue (existem): ${caminhos}.`,
-    `Você é o dono **somente** destes caminhos: ${issue.dono.map(d => `\`${d}\``).join(", ")}. Escrever fora deles, comitar ou editar \`${cfgI.protegidos.join("`, `")}\` invalida a iteração.`,
+    `Issue #${issue.numero}: ${issue.titulo}. Read the body with \`gh issue view ${issue.numero}\` (cwd at the repository root); it was not copied here. The acceptance criteria section has ${issue.criterios.length} item(s).`,
+    `Paths cited in the issue (they exist): ${caminhos}.`,
+    `You own **only** these paths: ${issue.dono.map(d => `\`${d}\``).join(", ")}. Writing outside them, committing or editing \`${cfgI.protegidos.join("`, `")}\` invalidates the iteration.`,
+    ...(pista ? ["", "# Graph (graphify hint, derived; confirm in the file)", pista] : []),
     "",
     "# Change",
-    `Entregue só o que a issue #${issue.numero} pede. Teste primeiro quando houver seam. Não adicione dependência nem troque ferramenta; se faltar algo, devolva \`bloqueios\`. Não comite.`,
-    `O orquestrador roda ${verifs} depois de você, mas rode o que o critério pedir e relate comando e resultado reais.`,
+    `Deliver only what issue #${issue.numero} asks for. Test first when there is a seam. Do not add a dependency or swap a tool. Only return in \`bloqueios\` what really **blocks** the slice; nothing blocked is \`bloqueios: []\`. Observations, warnings and pointers go in \`notas\`. Do not commit.`,
+    `The orchestrator runs ${verifs} after you, but run whatever the criterion requires and report the real command and result.`,
     "",
     "# Acceptance",
-    `Devolva o relatório estruturado: \`arquivos\` tocados, \`criterios\` (um item por critério de aceite, na ordem da issue, com o texto do critério, como foi atendido e a evidência \`execucao\`, \`leitura\` ou \`nenhuma\`), \`comandos\` executados com o resultado observado e \`bloqueios\`.`,
+    `Return the structured report: \`arquivos\` touched, \`criterios\` (one item per acceptance criterion, in the issue's order, with the criterion text, how it was met and the evidence \`execucao\`, \`leitura\` or \`nenhuma\`), \`comandos\` executed with the observed result, \`bloqueios\` (empty array when nothing blocks) and \`notas\` (observations and warnings).`,
   ];
-  if (feedback) partes.push("", "# Iteração anterior falhou", feedback);
+  if (feedback) partes.push("", "# Previous iteration failed", feedback);
   return partes.join("\n");
 }
 
 const MOTIVO = {
-  coberto_com_execucao: "sem execução registrada com resultado observado que cubra o critério",
-  so_leitura: "o critério só tem leitura de código ou documento como prova",
-  alega_sem_provar: "o relatório declara pronto sem comando e resultado",
-  declara_execucao: "o relatório não registra nenhum comando executado com resultado",
+  coberto_com_execucao: "no recorded execution with an observed result covering the criterion",
+  so_leitura: "the criterion has only a code or document read as proof",
+  alega_sem_provar: "the report claims it is ready with no command and result",
+  declara_execucao: "the report records no executed command with a result",
 };
 
 async function avaliar(kernel, cfg, issue, relatorio, verificacao, alterados) {
@@ -323,15 +349,15 @@ async function avaliar(kernel, cfg, issue, relatorio, verificacao, alterados) {
   const falhas = [];
   const achados = [];
   const [porCrit, global] = await Promise.all([
-    lote(kernel, states, perguntasBool(gi.perguntas), `implementacao #${issue.numero} critérios`),
+    lote(kernel, states, perguntasBool(gi.perguntas), `implementacao #${issue.numero} criteria`),
     lote(kernel, { g: base }, perguntasBool(gi.perguntas_globais), `implementacao #${issue.numero} global`),
   ]);
-  for (const [k, m] of [...Object.entries(porCrit.erro), ...Object.entries(global.erro)]) falhas.push(`judge falhou (${k}): ${m}`);
+  for (const [k, m] of [...Object.entries(porCrit.erro), ...Object.entries(global.erro)]) falhas.push(`judge failed (${k}): ${m}`);
   const ler = (chave, resp, perguntas) => {
     for (const q of perguntas) {
       const v = resp?.[q.id]?.bool;
       if (typeof v !== "number") {
-        falhas.push(`${chave}: sem resposta para ${q.id}`);
+        falhas.push(`${chave}: no answer for ${q.id}`);
         continue;
       }
       const classe = classificar(v, q.ruim_se, faixa);
@@ -348,18 +374,18 @@ function feedbackDe(issue, achados, verificacao, motivos) {
   for (const m of motivos) l.push(`- ${m}`);
   for (const a of achados) {
     const n = /^c(\d+)$/.exec(a.onde)?.[1];
-    const quem = n ? `Critério ${n} ("${issue.criterios[Number(n) - 1]}")` : "Relatório";
+    const quem = n ? `Criterion ${n} ("${issue.criterios[Number(n) - 1]}")` : "Report";
     l.push(`- ${quem}: ${MOTIVO[a.pergunta] ?? a.pergunta} (${a.classe}).`);
   }
-  for (const v of verificacao) if (v.estado === "executado" && v.codigo !== 0) l.push(`- \`${v.comando}\` saiu com código ${v.codigo}. Final da saída:\n\`\`\`\n${v.saida}\n\`\`\``);
+  for (const v of verificacao) if (v.estado === "executado" && v.codigo !== 0) l.push(`- \`${v.comando}\` exited with code ${v.codigo}. End of the output:\n\`\`\`\n${v.saida}\n\`\`\``);
   return l.join("\n");
 }
 
-/** Uma iteração de uma issue. `kernel`: { judge, judgeBatch, agent }. */
-export async function passo(kernel, { sprint, issues }) {
+/** One iteration of one issue. `kernel`: { judge, judgeBatch, agent }. */
+export async function passo(kernel, { sprint, issues, reabrir = [] }) {
   const cfg = carregarConfig();
   const cfgI = cfg.conducao.implementacao;
-  const p = await plano({ sprint, issues });
+  const p = await plano({ sprint, issues, reabrir });
   if (p.bloqueios.length) return { acao: "bloqueado", motivos: p.bloqueios };
   if (!p.go) return { acao: "sem_go", proposta: p.proposta };
   const issue = p.proxima;
@@ -367,27 +393,44 @@ export async function passo(kernel, { sprint, issues }) {
     const pend = p.issues.filter(i => i.estado !== "ok" && i.estado !== "fechada");
     return { acao: "fim", ok: p.issues.filter(i => i.estado === "ok").map(i => i.numero), pendentes: pend.map(i => ({ numero: i.numero, estado: i.estado, motivo: i.bloqueio ?? i.ultima?.motivos?.join("; ") ?? null })) };
   }
-  if (issue.dono.length === 0) return { acao: "bloqueado", motivos: [`#${issue.numero} sem dono no go registrado`] };
+  if (issue.dono.length === 0) return { acao: "bloqueado", motivos: [`#${issue.numero} with no owner in the recorded go`] };
   const max = p.go.max_iteracoes ?? cfgI.max_iteracoes;
   const iteracao = issue.iteracoes + 1;
-  const feedback = issue.ultima?.veredito === "reiterar" ? issue.ultima.feedback : null;
+  if (issue.estado === "reaberta") {
+    if (iteracao > max) return { acao: "bloqueado", motivos: [`#${issue.numero} reopened beyond the limit of ${max} iteration(s)`] };
+    anexar(sprint, { tipo: "implementacao_reabertura", issue: issue.numero, do_recibo: issue.reaberta?.recibo ?? null, origem: issue.origem, ato_do_dono: true });
+  }
+  const feedback =
+    issue.ultima?.veredito === "reiterar"
+      ? issue.ultima.feedback
+      : issue.reaberta
+        ? [
+            `Block of iteration ${issue.reaberta.iteracao}, reopened by the owner. Reasons:`,
+            ...(issue.reaberta.motivos ?? []).map(m => `- ${m}`),
+            "- If some criterion of the issue was proven only with an ad-hoc command, add the permanent test that covers it to the suite.",
+          ].join("\n")
+        : null;
 
+  grafo.atualizar();
+  const pista = grafo.consultar(issue.titulo, { sementes: [...issue.caminhos, ...issue.dono] });
   const antes = instantaneo(cfgI);
   let relatorio = null;
   let erroAgente = null;
   try {
-    const h = await kernel.agent(briefing(p, issue, feedback, cfgI), {
+    const h = await kernel.agent(briefing(p, issue, feedback, cfgI, pista), {
       agent: issue.papel,
       label: camel(`Issue ${issue.numero} it${iteracao}`),
       schema: RELATORIO,
     });
     relatorio = await h.wait();
-    if (!relatorio || typeof relatorio !== "object") erroAgente = "subagente não devolveu relatório estruturado";
+    if (!relatorio || typeof relatorio !== "object") erroAgente = "subagent did not return a structured report";
   } catch (e) {
-    erroAgente = `subagente falhou: ${String(e?.message ?? e)}`;
+    erroAgente = `subagent failed: ${String(e?.message ?? e)}`;
   }
   const depois = instantaneo(cfgI);
   const alterados = diferenca(antes, depois);
+  const atualizado = grafo.atualizar();
+  const impacto = alterados.length ? grafo.impacto(alterados) : [];
 
   const motivos = [];
   let bloqueada = false;
@@ -396,17 +439,17 @@ export async function passo(kernel, { sprint, issues }) {
     bloqueada = true;
   }
   if (antes.head !== depois.head) {
-    motivos.push("o subagente alterou o HEAD do git (commit); comitar é do dono");
+    motivos.push("the subagent changed git's HEAD (commit); committing is the owner's act");
     bloqueada = true;
   }
   const fora = alterados.filter(c => !dentro(c, issue.dono));
   if (fora.length) {
-    motivos.push(`escreveu fora do dono declarado: ${fora.join(", ")}`);
+    motivos.push(`wrote outside the declared owner: ${fora.join(", ")}`);
     bloqueada = true;
   }
   const prot = alterados.filter(c => dentro(c, cfgI.protegidos));
   if (prot.length) {
-    motivos.push(`tocou caminho protegido: ${prot.join(", ")}`);
+    motivos.push(`touched a protected path: ${prot.join(", ")}`);
     bloqueada = true;
   }
   if (relatorio?.bloqueios?.length) {
@@ -416,14 +459,14 @@ export async function passo(kernel, { sprint, issues }) {
 
   const verificacao = bloqueada ? [] : verificar(cfgI);
   for (const v of verificacao) if (v.estado === "sem_verificador") {
-    motivos.push(`sem verificador para \`${v.comando}\`: ${v.motivo}`);
+    motivos.push(`no verifier for \`${v.comando}\`: ${v.motivo}`);
     bloqueada = true;
   }
   let julgamento = { falhas: [], achados: [], custo: null };
   const reiterar = [];
   if (!bloqueada) {
-    if (alterados.length === 0 && iteracao === 1) reiterar.push("nenhum arquivo foi alterado");
-    for (const v of verificacao) if (v.estado === "executado" && v.codigo !== 0) reiterar.push(`\`${v.comando}\` falhou (código ${v.codigo})`);
+    if (alterados.length === 0 && iteracao === 1) reiterar.push("no file was changed");
+    for (const v of verificacao) if (v.estado === "executado" && v.codigo !== 0) reiterar.push(`\`${v.comando}\` failed (code ${v.codigo})`);
     const anteriores = registros(sprint).filter(r => r.tipo === "implementacao_iteracao" && r.issue === issue.numero).flatMap(r => r.arquivos);
     julgamento = await avaliar(kernel, cfg, issue, relatorio, verificacao, [...new Set([...anteriores, ...alterados])].sort());
     if (julgamento.falhas.length) {
@@ -436,7 +479,7 @@ export async function passo(kernel, { sprint, issues }) {
   else if (reiterar.length || julgamento.achados.length) veredito = iteracao >= max ? "bloqueada" : "reiterar";
   else veredito = "ok";
   if (veredito === "bloqueada" && !motivos.length) {
-    motivos.push(`esgotou ${max} iteração(ões) sem cobrir todos os critérios`);
+    motivos.push(`esgotou ${max} iteration(s) without covering all criteria`);
     motivos.push(...reiterar, ...julgamento.achados.map(a => `${a.onde}: ${a.pergunta}=${a.valor} (${a.classe})`));
   }
   const feedbackProx = veredito === "reiterar" ? feedbackDe(issue, julgamento.achados, verificacao, reiterar) : null;
@@ -450,6 +493,8 @@ export async function passo(kernel, { sprint, issues }) {
     motivos,
     achados: julgamento.achados,
     arquivos: alterados,
+    impacto,
+    grafo: grafo.resumo(atualizado.estado),
     testes: verificacao.map(v => ({ comando: v.comando, estado: v.estado, codigo: v.codigo ?? null, saida: v.saida ? cortar(v.saida, 1500, [], "saida") : null })),
     relatorio,
     feedback: feedbackProx,
@@ -457,10 +502,10 @@ export async function passo(kernel, { sprint, issues }) {
     calibrado: cfg.calibrado,
     recibo,
   });
-  return { acao: "iteracao", issue: issue.numero, titulo: issue.titulo, iteracao, max, veredito, motivos, achados: julgamento.achados, arquivos: alterados, testes: verificacao.map(v => `${v.comando}: ${v.estado === "executado" ? `código ${v.codigo}` : v.estado}`), recibo };
+  return { acao: "iteracao", issue: issue.numero, titulo: issue.titulo, iteracao, max, veredito, motivos, achados: julgamento.achados, arquivos: alterados, impacto, testes: verificacao.map(v => `${v.comando}: ${v.estado === "executado" ? `code ${v.codigo}` : v.estado}`), recibo };
 }
 
-/** Linha de resumo da saída do verificador (ex.: `1 test, 0 failures`), ou a última linha não vazia. */
+/** Summary line of the verifier output (e.g. `1 test, 0 failures`), or the last non-empty line. */
 function resumoSaida(saida) {
   const linhas = (saida ?? "").split("\n").map(s => s.trim()).filter(Boolean);
   const alvo = [...linhas].reverse().find(s => /\d+ (tests?|doctests?).*failure/i.test(s)) ?? linhas.at(-1);
@@ -476,54 +521,56 @@ function renderizar(p, regs, cfg) {
     "",
     MARCA,
     "",
-    `# Implementação — ${p.sprint}`,
+    `# Implementation — ${p.sprint}`,
     "",
-    "Registro por iteração em [`jev.jsonl`](jev.jsonl). A coluna de verificação é o que o orquestrador executou e mediu; o texto de cada critério abaixo é o que o subagente declarou, e foi julgado pelo Jev como consultivo (`calibrado: " + cfg.calibrado + "`). Nenhum commit foi feito; nenhuma issue foi fechada. O dono confere a evidência.",
+    "Record per iteration in [`jev.jsonl`](jev.jsonl). The verification column is what the orchestrator ran and measured; the text of each criterion below is what the subagent declared, and Jev judged it as advisory (`calibrado: " + cfg.calibrado + "`). No commit was made; no issue was closed. The owner checks the evidence.",
     "",
   ];
   for (const i of p.issues) {
     const ult = i.ultima;
-    l.push(`## #${i.numero} — ${i.titulo}`, "", `- estado: **${i.estado}** em ${i.iteracoes} iteração(ões); papel: \`${i.papel}\`; dono: ${i.dono.map(d => `\`${d}\``).join(", ") || "—"}`);
+    l.push(`## #${i.numero} — ${i.titulo}`, "", `- status: **${i.estado}** in ${i.iteracoes} iteration(s); role: \`${i.papel}\`; owner: ${i.dono.map(d => `\`${d}\``).join(", ") || "—"}`);
     if (!ult) {
-      l.push(`- sem iteração registrada${i.bloqueio ? `: ${i.bloqueio}` : ""}`, "");
+      l.push(`- no iteration recorded${i.bloqueio ? `: ${i.bloqueio}` : ""}`, "");
       continue;
     }
     const acumulados = [...new Set(regs.filter(r => r.tipo === "implementacao_iteracao" && r.issue === i.numero).flatMap(r => r.arquivos))].sort();
-    l.push(`- arquivos alterados nas iterações (medidos por hash antes e depois): ${acumulados.map(a => `\`${a}\``).join(", ") || "nenhum"}`);
-    for (const t of ult.testes) l.push(`- verificação: \`${t.comando}\` → ${t.estado === "executado" ? `código ${t.codigo}${resumoSaida(t.saida)}` : t.estado}`);
-    for (const m of ult.motivos) l.push(`- ${ult.veredito === "ok" ? "nota" : "pendência"}: ${m}`);
+    l.push(`- files changed across iterations (measured by hash before and after): ${acumulados.map(a => `\`${a}\``).join(", ") || "none"}`);
+    const alcance = [...new Set(regs.filter(r => r.tipo === "implementacao_iteracao" && r.issue === i.numero).flatMap(r => (r.impacto ?? []).map(x => `${x.no} (${x.onde})`)))];
+    if (alcance.length) l.push(`- reach, from the graphify graph (derived and approximate; a hint for the reviewer, not proof): ${alcance.map(a => `\`${a}\``).join(", ")}`);
+    for (const t of ult.testes) l.push(`- verification: \`${t.comando}\` → ${t.estado === "executado" ? `code ${t.codigo}${resumoSaida(t.saida)}` : t.estado}`);
+    for (const m of ult.motivos) l.push(`- ${ult.veredito === "ok" ? "note" : "pending"}: ${m}`);
     const crits = ult.relatorio?.criterios ?? [];
-    if (crits.length) l.push("", "Critérios (declarados pelo subagente):");
-    for (const c of crits) l.push(`- [${c.evidencia === "execucao" ? "x" : " "}] ${c.criterio} — ${c.atendimento} (evidência: ${c.evidencia}${c.comando ? `; \`${c.comando}\`` : ""})`);
-    l.push(`- recibo: \`${ult.recibo}\``, "");
+    if (crits.length) l.push("", "Criteria (declared by the subagent):");
+    for (const c of crits) l.push(`- [${c.evidencia === "execucao" ? "x" : " "}] ${c.criterio} — ${c.atendimento} (evidence: ${c.evidencia}${c.comando ? `; \`${c.comando}\`` : ""})`);
+    l.push(`- receipt: \`${ult.recibo}\``, "");
   }
   return l.join("\n");
 }
 
-/** Quando não há mais issue a rodar: grava `implementacao.md` (derivado dos registros) e roda o gate. */
+/** When there is no issue left to run: writes `implementacao.md` (derived from the records) and runs the gate. */
 export async function fechar(kernel, { sprint, issues }) {
   const cfg = carregarConfig();
   const p = await plano({ sprint, issues });
   if (p.bloqueios.length) return { acao: "bloqueado", motivos: p.bloqueios };
-  if (p.proxima) return { acao: "bloqueado", motivos: [`ainda há issue a rodar: #${p.proxima.numero}`] };
+  if (p.proxima) return { acao: "bloqueado", motivos: [`there is still an issue to run: #${p.proxima.numero}`] };
   const rel = rel05(sprint, "implementacao.md");
   const existente = lerRel(rel);
-  if (existente !== null && !existente.includes(MARCA)) return { acao: "bloqueado", motivos: [`${rel} existe e não foi gerado por este loop; não sobrescrevo`] };
+  if (existente !== null && !existente.includes(MARCA)) return { acao: "bloqueado", motivos: [`${rel} exists and was not generated by this loop; I will not overwrite`] };
   writeFileSync(join(RAIZ, rel), renderizar(p, registros(sprint), cfg));
   const itens = p.issues.filter(i => i.estado === "ok").flatMap(i => i.criterios.map((c, k) => ({ id: `#${i.numero}.${k + 1}`, texto: c })));
-  if (itens.length === 0) return { acao: "fechado", arquivo: rel, gate: "gate pulado: nenhuma issue ok para julgar", veredito: "bloqueado", recibo: null };
+  if (itens.length === 0) return { acao: "fechado", arquivo: rel, gate: "gate skipped: no ok issue to judge", veredito: "bloqueado", recibo: null };
   const r = await rodar(kernel, "implementacao", { sprint, itens });
   if (!r.falhas.length) registrar(r, { etapa: "05_implement" });
   return { acao: "fechado", arquivo: rel, gate: textoGate(r), veredito: r.veredito, recibo: r.recibo };
 }
 
-/** Texto curto do plano. */
+/** Short plan text. */
 export function painel(p) {
-  const l = [`implementação · ${p.sprint} · máx. ${p.max_iteracoes} iteração(ões) por issue · go: ${p.go ? p.go.em : "não registrado"}`];
-  for (const b of p.bloqueios) l.push(`BLOQUEIO  ${b}`);
+  const l = [`implementation · ${p.sprint} · max. ${p.max_iteracoes} iteration(s) per issue · go: ${p.go ? p.go.em : "not recorded"}`];
+  for (const b of p.bloqueios) l.push(`BLOCKED  ${b}`);
   for (const i of p.issues) {
-    l.push(`  #${i.numero} [${i.estado}${i.iteracoes ? ` it${i.iteracoes}` : ""}] ${i.titulo.slice(0, 60)} · ${i.criterios.length} critério(s) · deps: ${i.deps.map(d => `#${d}`).join(",") || "—"} · papel ${i.papel} · dono: ${i.dono.join(", ") || "—"}${i.bloqueio ? `\n      BLOQUEIO ${i.bloqueio}` : ""}`);
+    l.push(`  #${i.numero} [${i.estado}${i.iteracoes ? ` it${i.iteracoes}` : ""}${i.reaberta ? ", reopened by the owner" : ""}] ${i.titulo.slice(0, 60)} · ${i.criterios.length} criterion(s) · deps: ${i.deps.map(d => `#${d}`).join(",") || "—"} · role ${i.papel} · owner: ${i.dono.join(", ") || "—"}${i.bloqueio ? `\n      BLOCKED ${i.bloqueio}` : ""}`);
   }
-  if (p.proxima) l.push(`próxima: #${p.proxima.numero}`);
+  if (p.proxima) l.push(`next: #${p.proxima.numero}`);
   return l.join("\n");
 }

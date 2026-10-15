@@ -1,31 +1,31 @@
-# 04_tickets — planejar fatias
+# 04_tickets — plan slices
 
-## Objetivo
+## Objective
 
-Dividir a spec em entregas pequenas, verticais e demonstráveis, com bloqueios que representem dependências reais.
+Split the spec into small, vertical and demonstrable deliveries, with blocks that represent real dependencies.
 
-## Entradas
+## Inputs
 
-- `03_spec/handovers/spec.md` e, se existir, `spec-tecnica.md`.
-- Glossário e ADRs locais.
-- Contrato do tracker em [`../agents/README.md`](../agents/README.md).
+- `03_spec/handovers/spec.md` and, if it exists, `spec-tecnica.md`.
+- Glossary and local ADRs.
+- Tracker contract in [`../agents/README.md`](../agents/README.md).
 
-## Processo
+## Process
 
-1. Proponha uma fatia por caminho completo de comportamento, não uma camada horizontal isolada.
-2. Para cada dependência, confirme que o ticket bloqueador é necessário para começar a fatia; evite serializar trabalho paralelo.
-3. Para migração ampla, ordene expansão, migração por lotes e remoção da forma antiga em fatias separadas.
-4. Apresente títulos, escopo, critérios de aceite e arestas para aprovação humana antes de publicar.
-5. Publique no tracker definido em `../agents/README.md` somente depois da aprovação humana do passo 4; antes disso a proposta fica em `handovers/tickets.md`.
+1. Propose one slice per complete behavior path, not an isolated horizontal layer.
+2. For each dependency, confirm that the blocking ticket is necessary to start the slice; avoid serializing parallel work.
+3. For a broad migration, order expansion, batch migration and removal of the old form into separate slices.
+4. Present titles, scope, acceptance criteria and edges for human approval before publishing.
+5. Publish to the tracker defined in `../agents/README.md` only after the human approval of step 4; before that the proposal stays in `handovers/tickets.md`.
 
-## Saída e gate humano
+## Output and human gate
 
-Saída: `docs/_sprints/{sprint}/04_tickets/handovers/tickets.md`. O dono aprova granularidade e bloqueios. A etapa só fecha após publicar ou registrar explicitamente que o trabalho é uma passada única e foi marcado `nao-aplicavel` segundo as regras do processo.
+Output: `docs/_sprints/{sprint}/04_tickets/handovers/tickets.md`. The owner approves granularity and blocks. The stage closes only after publishing or explicitly recording that the work is a single pass and was marked `nao-aplicavel` according to the process rules.
 
-Antes de publicar, rode o gate `tickets` ([`../agents/jev.md`](../agents/jev.md)) e leve o `recibo` ao dono.
+Before publishing, run the `tickets` gate ([`../agents/jev.md`](../agents/jev.md)) and take the `receipt` to the owner.
 
-Depois de publicar, registre em `handovers/tickets.md` o número de cada issue como `#N`: é essa lista que o `/icm implement` lê para saber quais issues pertencem à sprint ([`../agents/jev.md`](../agents/jev.md)). Dependências entre issues vão na seção `Dependências` do corpo da issue, citando `#N`.
+After publishing, record in `handovers/tickets.md` the number of each issue as `#N`: it is that list that `/icm implement` reads to know which issues belong to the sprint ([`../agents/jev.md`](../agents/jev.md)). Dependencies between issues go in the `Dependências` section of the issue body, citing `#N`.
 
-## Quando não se aplica
+## When it does not apply
 
-Pode ser `nao-aplicavel` para uma tarefa isolada que não possa ser dividida sem custo maior que o trabalho. A ficha explica a razão e registra o risco de não haver trilha por ticket.
+It may be `nao-aplicavel` for an isolated task that cannot be split without a cost greater than the work. The sheet explains the reason and records the risk of having no per-ticket trail.

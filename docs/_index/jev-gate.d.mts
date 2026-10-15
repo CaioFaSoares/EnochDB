@@ -1,4 +1,4 @@
-// Tipos só do que o hook `.omp/hooks/pre/icm-jev.ts` importa. O contrato vive em jev-gate.mjs.
+// Types only for what the hook `.omp/hooks/pre/icm-jev.ts` imports. The contract lives in jev-gate.mjs.
 export const RAIZ: string;
 
 export interface Guarda {

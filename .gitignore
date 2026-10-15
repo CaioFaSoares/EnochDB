@@ -1,0 +1,12 @@
+# Derivado do repositório (A4): reconstruído por `graphify update .`. Ver docs/agents/graphify.md.
+graphify-out/
+
+# Artefatos de compilação do Mix: reconstruídos por `mix deps.get` e `mix compile`.
+_build/
+deps/
+
+# Ruído do Elixir/Erlang.
+erl_crash.dump
+.elixir_ls/
+cover/
+doc/

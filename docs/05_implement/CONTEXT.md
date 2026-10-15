@@ -1,26 +1,26 @@
-# 05_implement — executar uma fatia
+# 05_implement — execute a slice
 
-## Objetivo
+## Objective
 
-Entregar o ticket autorizado sem ampliar seu escopo. Uma tarefa sem ticket ou autorização explícita não é entrada desta etapa.
+Deliver the authorized ticket without widening its scope. A task with no ticket or explicit authorization is not an input of this stage.
 
-## Entradas
+## Inputs
 
-- `04_tickets/handovers/tickets.md` e o corpo do ticket em curso.
-- Mapeamento técnico de `03_spec`, se existir.
-- [`../../CONTEXT.md`](../../CONTEXT.md), [`../canon.md`](../canon.md) e os ADRs relevantes em [`../adr/`](../adr/).
+- `04_tickets/handovers/tickets.md` and the body of the ticket in progress.
+- Technical mapping from `03_spec`, if it exists.
+- [`../../CONTEXT.md`](../../CONTEXT.md), [`../canon.md`](../canon.md) and the relevant ADRs in [`../adr/`](../adr/).
 
-## Processo
+## Process
 
-1. Escolha um ticket cujos bloqueios estejam resolvidos e confirme seus critérios antes de editar.
-2. Escreva o teste de comportamento primeiro quando houver seam apropriado; implemente só o necessário para passar.
-3. Execute testes focados durante o trabalho e a suíte completa uma vez ao final.
-4. Exercite o fluxo no programa real; teste isolado não substitui evidência ponta a ponta.
-5. Registre ticket, commits, arquivos alterados, verificações observadas e pendências em `handovers/implementacao.md`.
-6. Se surgirem novas decisões ou termos, atualize as fontes canônicas e sinalize qualquer mudança de escopo para aprovação.
+1. Choose a ticket whose blocks are resolved and confirm its criteria before editing.
+2. Write the behavior test first when there is an appropriate seam; implement only what is needed to pass.
+3. Run focused tests during the work and the full suite once at the end.
+4. Exercise the flow in the real program; an isolated test does not replace end-to-end evidence.
+5. Record the ticket, commits, changed files, observed verifications and pending items in `handovers/implementacao.md`.
+6. If new decisions or terms appear, update the canonical sources and flag any scope change for approval.
 
-## Saída e gate humano
+## Output and human gate
 
-Saída: `docs/_sprints/{sprint}/05_implement/handovers/implementacao.md`. O dono confere a evidência e pendências; não declare ticket ou etapa fechados sem o resultado correspondente.
+Output: `docs/_sprints/{sprint}/05_implement/handovers/implementacao.md`. The owner checks the evidence and pending items; do not declare a ticket or stage closed without the corresponding result.
 
-Antes de pedir o gate, rode o gate `implementacao` ([`../agents/jev.md`](../agents/jev.md)): critério sem execução registrada é achado. Antes de começar, se houver mais de um caminho viável, use `opcoes`.
+Before asking for the gate, run the `implementacao` gate ([`../agents/jev.md`](../agents/jev.md)): a criterion with no recorded execution is a finding. Before starting, if there is more than one viable path, use `opcoes`.
