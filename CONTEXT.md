@@ -46,7 +46,7 @@ _Avoid_: commit, lote.
 
 **Transactor**:
 O único escritor de uma instância do banco; serializa as transações.
-_Avoid_: writer, escritor.
+_Avoid_: writer.
 
 **Base**:
 O número de ordem da última transação visível a um banco como valor.

@@ -10,7 +10,7 @@ Convenção do Mix: o módulo `Enoch.Foo` mora em `lib/enoch/foo.ex`; um módulo
 enoch/
 ├── mix.exs                  pacote único, app OTP :enoch (D23, D37)
 ├── flake.nix                ambiente e comandos de projeto (D38)
-├── Dockerfile               contêiner leve, SQLite em volume (D38, item 31)
+├── Dockerfile               contêiner leve, SQLite embutido no contêiner do back (D38, item 31, ADR-0009)
 ├── lib/
 │   ├── enoch.ex             API pública funcional por nome de instância (D32)
 │   └── enoch/

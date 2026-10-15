@@ -1,6 +1,6 @@
 # Decisões do 01_grilling — s01-nucleo-enoch
 
-Estado (2026-10-15): **sem pontos abertos, aguardando a leitura e o aceite do dono** (gate do `01_grilling`, `../../../../01_grilling/CONTEXT.md`). A ficha da etapa continua `em-curso` até esse aceite. Fontes lidas: [`../../../../canon.md`](../../../../canon.md), [`../../../../canon/chat.md`](../../../../canon/chat.md), [`../../../../../CONTEXT.md`](../../../../../CONTEXT.md).
+Estado (2026-10-15): **sem pontos abertos; o dono aceitou o conjunto em 2026-10-15** (gate do `01_grilling`, `../../../../01_grilling/CONTEXT.md`, ficha `fechado`). Fontes lidas: [`../../../../canon.md`](../../../../canon.md), [`../../../../canon/chat.md`](../../../../canon/chat.md), [`../../../../../CONTEXT.md`](../../../../../CONTEXT.md).
 
 **Iniciativas do agente que o dono ainda não confirmou explicitamente** (o aceite do conjunto as confirma; qualquer uma pode ser vetada):
 - D17, critério 3: o gate é o contador de linhas lidas, não tempo.
