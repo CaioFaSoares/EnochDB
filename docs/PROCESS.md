@@ -81,4 +81,4 @@ Preencha a ficha da sprint (identificador, título, `epico:` e data) e cada fich
 
 ## Tracker e publicação
 
-O tracker do EnochDB ainda não foi escolhido. Até essa decisão ser registrada, as etapas `03_spec` e `04_tickets` podem preparar seus handovers, mas não devem publicar issues nem inventar um fluxo externo. A convenção de publicação entra em `agents/` depois da escolha.
+O tracker é escolhido e a convenção de uso está em [`agents/README.md`](agents/README.md). As etapas `03_spec` e `04_tickets` preparam seus handovers e só publicam issues depois da aprovação humana descrita no contrato de cada etapa.

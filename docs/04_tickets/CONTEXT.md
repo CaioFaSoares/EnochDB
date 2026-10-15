@@ -8,7 +8,7 @@ Dividir a spec em entregas pequenas, verticais e demonstráveis, com bloqueios q
 
 - `03_spec/handovers/spec.md` e, se existir, `spec-tecnica.md`.
 - Glossário e ADRs locais.
-- Contrato do tracker em `../agents/`, somente após ele ser escolhido.
+- Contrato do tracker em [`../agents/README.md`](../agents/README.md).
 
 ## Processo
 
@@ -16,7 +16,7 @@ Dividir a spec em entregas pequenas, verticais e demonstráveis, com bloqueios q
 2. Para cada dependência, confirme que o ticket bloqueador é necessário para começar a fatia; evite serializar trabalho paralelo.
 3. Para migração ampla, ordene expansão, migração por lotes e remoção da forma antiga em fatias separadas.
 4. Apresente títulos, escopo, critérios de aceite e arestas para aprovação humana antes de publicar.
-5. Até a escolha do tracker, registre a proposta em `handovers/tickets.md` e não publique issues.
+5. Publique no tracker definido em `../agents/README.md` somente depois da aprovação humana do passo 4; antes disso a proposta fica em `handovers/tickets.md`.
 
 ## Saída e gate humano
 
