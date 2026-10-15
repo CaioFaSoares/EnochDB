@@ -22,3 +22,5 @@ Entregar o ticket autorizado sem ampliar seu escopo. Uma tarefa sem ticket ou au
 ## Saída e gate humano
 
 Saída: `docs/_sprints/{sprint}/05_implement/handovers/implementacao.md`. O dono confere a evidência e pendências; não declare ticket ou etapa fechados sem o resultado correspondente.
+
+Antes de pedir o gate, rode o gate `implementacao` ([`../agents/jev.md`](../agents/jev.md)): critério sem execução registrada é achado. Antes de começar, se houver mais de um caminho viável, use `opcoes`.

@@ -22,3 +22,5 @@ Deixar um próximo agente ou colaborador começar sem depender da memória de qu
 ## Saída e gate humano
 
 Saída: `docs/_sprints/{sprint}/07_handoff/handovers/handoff.md`. O dono lê como se não tivesse participado do trabalho. Se precisar de contexto ausente, complete o handover antes de fechar a etapa.
+
+Antes do gate humano, rode o gate `handoff` ([`../agents/jev.md`](../agents/jev.md)), que testa o contexto zero, e leve o `recibo` ao dono.

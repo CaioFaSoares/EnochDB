@@ -1,0 +1,308 @@
+{
+  "modelo": "typesafe/jev-latest",
+  "calibrado": false,
+  "faixa_incerta": [0.3, 0.7],
+  "limite_estado_chars": 120000,
+  "limite_item_chars": 4000,
+  "gates": {
+    "estado": {
+      "tipo": "estado",
+      "perguntas": [
+        {
+          "id": "resultado_sustentado",
+          "instrucoes": "A ficha declara um resultado para a etapa. O resultado declarado é sustentado pelo conteúdo dos handovers apresentados?",
+          "ruim_se": "baixo"
+        },
+        {
+          "id": "handover_descreve_como_feito_o_pendente",
+          "instrucoes": "Os handovers descrevem como feito algo que o próprio texto mostra como não executado, pendente ou não verificado?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "grilling": {
+      "tipo": "evidencia",
+      "etapa": "01_grilling",
+      "artefatos": {
+        "decisoes": "docs/_sprints/{sprint}/01_grilling/handovers/decisoes.md"
+      },
+      "perguntas": [
+        {
+          "id": "decisao_fechada_sem_origem",
+          "instrucoes": "Alguma decisão listada como fechada não indica nem que o dono a tomou nem que é iniciativa do agente?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "pergunta_aberta_dentro_de_fechada",
+          "instrucoes": "Alguma decisão listada como fechada ainda contém uma pergunta ou dúvida sem resposta?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "dominio": {
+      "tipo": "evidencia",
+      "etapa": "02_domain",
+      "artefatos": {
+        "adrs": "docs/_sprints/{sprint}/02_domain/handovers/adrs.md"
+      },
+      "artefatos_citados": {
+        "fonte": "adrs",
+        "padrao": "/adr/(\\d{4}-[a-z0-9-]+\\.md)",
+        "base": "docs/adr/"
+      },
+      "perguntas": [
+        {
+          "id": "adr_so_solucao",
+          "instrucoes": "Alguma ADR ou decisão consolidada descreve apenas a solução, sem explicar a dor que a motivou?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "termo_sem_aprovacao",
+          "instrucoes": "Algum termo de glossário é apresentado como aprovado sem indicar a aprovação do dono?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "decisao_sem_casa",
+          "instrucoes": "Alguma decisão consolidada não aponta o caminho do ADR, do glossário ou do canon onde passou a morar?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "spec": {
+      "tipo": "cobertura",
+      "etapa": "03_spec",
+      "itens": {
+        "fonte": "docs/_sprints/{sprint}/01_grilling/handovers/decisoes.md",
+        "padrao": "^\\*\\*(D\\d+)\\.",
+        "bloco": "ate_proximo",
+        "exigir_citacao": true
+      },
+      "artefatos": {
+        "alvo": "docs/_sprints/{sprint}/03_spec/handovers/spec.md"
+      },
+      "perguntas": [
+        {
+          "id": "coberta",
+          "instrucoes": "O alvo traz requisito, critério de aceite ou item de fora de escopo que corresponde à decisão apresentada?",
+          "ruim_se": "baixo"
+        },
+        {
+          "id": "contradita",
+          "instrucoes": "O alvo contradiz a decisão apresentada?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "tickets": {
+      "tipo": "cobertura",
+      "etapa": "04_tickets",
+      "itens": {
+        "fonte": "docs/_sprints/{sprint}/03_spec/handovers/spec.md",
+        "exigir_citacao": false
+      },
+      "artefatos": {
+        "alvo": "docs/_sprints/{sprint}/04_tickets/handovers/tickets.md"
+      },
+      "perguntas": [
+        {
+          "id": "coberto_por_ticket",
+          "instrucoes": "O alvo traz ao menos um ticket cujo escopo ou critério de aceite entrega o requisito apresentado?",
+          "ruim_se": "baixo"
+        }
+      ]
+    },
+    "implementacao": {
+      "tipo": "cobertura",
+      "etapa": "05_implement",
+      "itens": {
+        "fonte": "docs/_sprints/{sprint}/04_tickets/handovers/tickets.md",
+        "exigir_citacao": false
+      },
+      "artefatos": {
+        "alvo": "docs/_sprints/{sprint}/05_implement/handovers/implementacao.md"
+      },
+      "perguntas": [
+        {
+          "id": "coberto_com_execucao",
+          "instrucoes": "Para o critério apresentado, o alvo registra um comando executado ou um uso exercitado, com o resultado observado?",
+          "ruim_se": "baixo"
+        },
+        {
+          "id": "so_leitura",
+          "instrucoes": "Para o critério apresentado, o alvo oferece apenas leitura de código ou de documento como prova?",
+          "ruim_se": "alto"
+        }
+      ],
+      "perguntas_globais": [
+        {
+          "id": "alega_sem_provar",
+          "instrucoes": "O texto declara algo pronto, verificado ou aprovado sem mostrar o comando executado nem o resultado observado?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "declara_execucao",
+          "instrucoes": "O texto registra ao menos um comando de teste ou de uso executado, com o resultado observado?",
+          "ruim_se": "baixo"
+        }
+      ]
+    },
+    "revisao": {
+      "tipo": "evidencia",
+      "etapa": "06_review",
+      "artefatos": {
+        "revisao": "docs/_sprints/{sprint}/06_review/handovers/revisao.md",
+        "pr": "docs/_sprints/{sprint}/06_review/handovers/pr.md"
+      },
+      "perguntas": [
+        {
+          "id": "achado_sem_evidencia",
+          "instrucoes": "Algum achado da revisão é registrado sem evidência, isto é, sem arquivo, linha, comando ou resultado observado?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "achado_sem_destino",
+          "instrucoes": "Algum achado relevante não indica se foi corrigido ou se virou item de trabalho?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "verificacao_alegada_sem_comando",
+          "instrucoes": "O texto do PR cita verificação como feita sem o comando executado?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "handoff": {
+      "tipo": "evidencia",
+      "etapa": "07_handoff",
+      "artefatos": {
+        "handoff": "docs/_sprints/{sprint}/07_handoff/handovers/handoff.md"
+      },
+      "perguntas": [
+        {
+          "id": "exige_memoria_da_sessao",
+          "instrucoes": "Um leitor sem acesso à sessão que produziu o texto precisaria de contexto que o texto não traz para começar a missão?",
+          "ruim_se": "alto"
+        },
+        {
+          "id": "missao_clara",
+          "instrucoes": "O texto declara uma missão concreta para a próxima sessão e o que não deve ser feito?",
+          "ruim_se": "baixo"
+        },
+        {
+          "id": "alega_execucao_nao_observada",
+          "instrucoes": "O texto afirma como executado algo que o próprio texto não sustenta com evidência?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "opcoes": {
+      "tipo": "opcoes",
+      "empate": 0.1
+    }
+  },
+  "conducao": {
+    "gate_por_etapa": {
+      "01_grilling": "grilling",
+      "02_domain": "dominio",
+      "03_spec": "spec",
+      "04_tickets": "tickets",
+      "05_implement": "implementacao",
+      "06_review": "revisao",
+      "07_handoff": "handoff"
+    },
+    "handover_por_etapa": {
+      "01_grilling": "decisoes.md",
+      "02_domain": "adrs.md",
+      "03_spec": "spec.md",
+      "04_tickets": "tickets.md",
+      "05_implement": "implementacao.md",
+      "06_review": "revisao.md",
+      "07_handoff": "handoff.md"
+    },
+    "papeis_por_etapa": {
+      "01_grilling": ["11-discovery-rubberduck", "53-doubt-explorer", "10-discovery-backlog"],
+      "02_domain": ["20-architecture-keeper", "21-architecture-data", "54-code-explorer"],
+      "03_spec": ["20-architecture-keeper", "30-ticketing-slicer", "11-discovery-rubberduck"],
+      "04_tickets": ["30-ticketing-slicer", "20-architecture-keeper"],
+      "05_implement": ["42-implementation-backend", "44-implementation-integration", "45-implementation-troubleshooter", "41-implementation-captain"],
+      "06_review": ["60-sprint-review", "01-orchestration-reviewer", "20-architecture-keeper", "21-architecture-data"],
+      "07_handoff": ["00-orchestration-icm"]
+    },
+    "confianca_minima_papel": 0.6,
+    "guarda": {
+      "proteger": [
+        "docs/agents/jev-gates.json",
+        "docs/_index/",
+        ".omp/hooks/",
+        ".omp/commands/icm.md"
+      ],
+      "proteger_recibos": "^docs/_sprints/[^/]+/[^/]+/handovers/jev\\.jsonl$",
+      "ficha_de_etapa": "^docs/_sprints/[^/]+/\\d{2}_[a-z]+/CONTEXT\\.md$",
+      "status_que_pede_dono": "status:\\s*fechado"
+    },
+    "implementacao": {
+      "papel_padrao": "42-implementation-backend",
+      "max_iteracoes": 3,
+      "timeout_verificacao_s": 900,
+      "limite_saida_chars": 6000,
+      "secao_criterios": "^#{2,3}\\s+Crit[eé]rios de aceite",
+      "secao_dependencias": "^#{2,3}\\s+(Depend[eê]ncias|Bloqueios|Bloqueada por)",
+      "verificacao": [
+        { "comando": "mix test", "requer": "mix.exs" }
+      ],
+      "ignorados": [
+        "_build/",
+        "deps/",
+        ".elixir_ls/",
+        "erl_crash.dump"
+      ],
+      "protegidos": [
+        ".git/",
+        ".omp/",
+        "docs/agents/jev-gates.json",
+        "docs/_index/",
+        "docs/_sprints/",
+        "docs/adr/",
+        "docs/canon.md",
+        "CONTEXT.md"
+      ]
+    },
+    "backlog": {
+      "confianca_minima_epico": 0.6,
+      "perguntas": [
+        {
+          "id": "pergunta_delimitada",
+          "instrucoes": "O item formula uma única dúvida ou ideia delimitada, em vez de vários assuntos misturados?",
+          "ruim_se": "baixo"
+        },
+        {
+          "id": "afirma_sem_ancora",
+          "instrucoes": "O item afirma como fato algo que nenhuma âncora arquivo:linha do próprio item sustenta?",
+          "ruim_se": "alto"
+        }
+      ]
+    },
+    "perguntas_issue": [
+      {
+        "id": "tem_criterio_de_aceite",
+        "instrucoes": "O corpo da issue traz critérios de aceite observáveis, isto é, algo que se possa verificar ao terminar?",
+        "ruim_se": "baixo"
+      },
+      {
+        "id": "escopo_delimitado",
+        "instrucoes": "A issue delimita o que entra e o que fica de fora do trabalho?",
+        "ruim_se": "baixo"
+      },
+      {
+        "id": "declara_bloqueio",
+        "instrucoes": "A issue depende de algo que, segundo o estado_das_etapas informado, ainda não aconteceu? Dependência cuja etapa já está fechada não conta.",
+        "ruim_se": "alto"
+      },
+      {
+        "id": "pede_codigo",
+        "instrucoes": "A issue pede escrever ou alterar código-fonte, e não apenas documentação?",
+        "ruim_se": null
+      }
+    ]
+  }
+}

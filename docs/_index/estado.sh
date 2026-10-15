@@ -55,3 +55,10 @@ for d in "$docs"/_sprints/*/; do
   [ -e "$ficha" ] && epico=$(campo "$ficha" epico)
   printf -- '- %-16s [%s]  epico=%s\n' "$base" "$(estado_sprint "$d")" "$epico"
 done
+
+echo
+echo "# Backlog (sem sprint)"
+for f in "$docs"/_backlog/B*.md; do
+  [ -e "$f" ] || continue
+  printf -- '- %-34s epico_sugerido=%s  %s\n' "$(basename "$f" .md)" "$(campo "$f" epico_sugerido)" "$(campo "$f" titulo)"
+done

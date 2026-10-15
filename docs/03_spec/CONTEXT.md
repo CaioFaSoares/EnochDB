@@ -22,6 +22,8 @@ Converter decisões aprovadas em comportamento verificável, sem reabrir a entre
 
 Saída: `docs/_sprints/{sprint}/03_spec/handovers/spec.md` e, quando houver base de código, `spec-tecnica.md`. O dono verifica cobertura de todas as decisões, critérios testáveis e limites de escopo.
 
+Antes do gate humano, rode o gate `spec` ([`../agents/jev.md`](../agents/jev.md)): cada decisão do grilling precisa aparecer como requisito ou fora de escopo, e o `recibo` vai ao dono.
+
 ## Quando não se aplica
 
 Pode ser `nao-aplicavel` quando uma spec completa e aprovada já é a entrada do trabalho. A ficha aponta essa spec; não crie uma segunda.

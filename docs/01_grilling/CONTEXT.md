@@ -22,6 +22,8 @@ Transformar o pedido ou a hipótese de entrada em decisões que o dono reconheç
 
 Saída: `docs/_sprints/{sprint}/01_grilling/handovers/decisoes.md`.
 
+Antes do gate humano, rode o gate `grilling` ([`../agents/jev.md`](../agents/jev.md)) e leve o `recibo` ao dono.
+
 O dono lê e confirma as decisões fechadas. Se alguma parecer invenção do agente, ela volta à discussão. Só após esse aceite a ficha pode fechar.
 
 ## Quando não se aplica

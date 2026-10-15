@@ -22,6 +22,10 @@ Dividir a spec em entregas pequenas, verticais e demonstráveis, com bloqueios q
 
 Saída: `docs/_sprints/{sprint}/04_tickets/handovers/tickets.md`. O dono aprova granularidade e bloqueios. A etapa só fecha após publicar ou registrar explicitamente que o trabalho é uma passada única e foi marcado `nao-aplicavel` segundo as regras do processo.
 
+Antes de publicar, rode o gate `tickets` ([`../agents/jev.md`](../agents/jev.md)) e leve o `recibo` ao dono.
+
+Depois de publicar, registre em `handovers/tickets.md` o número de cada issue como `#N`: é essa lista que o `/icm implement` lê para saber quais issues pertencem à sprint ([`../agents/jev.md`](../agents/jev.md)). Dependências entre issues vão na seção `Dependências` do corpo da issue, citando `#N`.
+
 ## Quando não se aplica
 
 Pode ser `nao-aplicavel` para uma tarefa isolada que não possa ser dividida sem custo maior que o trabalho. A ficha explica a razão e registra o risco de não haver trilha por ticket.

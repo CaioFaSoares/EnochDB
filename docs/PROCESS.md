@@ -82,3 +82,7 @@ Preencha a ficha da sprint (identificador, título, `epico:` e data) e cada fich
 ## Tracker e publicação
 
 O tracker é escolhido e a convenção de uso está em [`agents/README.md`](agents/README.md). As etapas `03_spec` e `04_tickets` preparam seus handovers e só publicam issues depois da aprovação humana descrita no contrato de cada etapa.
+
+## Gates de julgamento
+
+Antes de pedir o gate humano de uma etapa, o agente roda o gate de julgamento correspondente e leva o `recibo` ao dono. O resultado é consultivo: não altera `status:`, não fecha etapa e não substitui a leitura do dono. Mecanismo, perguntas e limites estão em [`agents/jev.md`](agents/jev.md); o par `(veredito, decisão humana)` fica em `handovers/jev.jsonl` da etapa.

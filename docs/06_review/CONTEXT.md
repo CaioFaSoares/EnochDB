@@ -20,3 +20,5 @@ Verificar a implementação contra os critérios aprovados e os padrões locais 
 ## Saídas e gate humano
 
 Saídas: `docs/_sprints/{sprint}/06_review/handovers/revisao.md` e `pr.md`. O dono aceita o resultado da review antes de abrir PR; ausência de tracker/host de PR escolhido não autoriza inventar um destino.
+
+Antes do gate humano, rode o gate `revisao` ([`../agents/jev.md`](../agents/jev.md)) e leve o `recibo` ao dono.
