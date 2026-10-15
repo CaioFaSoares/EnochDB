@@ -1,6 +1,6 @@
 # Arquitetura de pastas do pacote `enoch`
 
-Mapa **proposto** das pastas de código do e01, para a etapa `02_domain` ratificar. Nenhuma pasta listada aqui existe ainda; o repositório só tem `docs/`. As decisões estão em [`_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md`](_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md) e são citadas por número (D#, item #), não copiadas. O vocabulário está em [`../CONTEXT.md`](../CONTEXT.md). O que o e01 entrega por sprint está na D22.
+Mapa das pastas de código do e01. As 14 pastas existem, cada uma só com um `CONTEXT.md` (issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1)); os arquivos `.ex`, `mix.exs`, `flake.nix` e `Dockerfile` da árvore **ainda não existem** e nascem nas sprints do e01 (D22). Este arquivo é a única casa da árvore e a ratificação do dono acontece no gate da etapa `02_domain`. As decisões estão em [`_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md`](_sprints/s01-nucleo-enoch/01_grilling/handovers/decisoes.md) e são citadas por número (D#, item #), não copiadas. O vocabulário está em [`../CONTEXT.md`](../CONTEXT.md). O que o e01 entrega por sprint está na D22.
 
 Convenção do Mix: o módulo `Enoch.Foo` mora em `lib/enoch/foo.ex`; um módulo e a pasta que guarda seus submódulos têm o mesmo nome (`lib/enoch/storage.ex` com `lib/enoch/storage/`). O módulo raiz `Enoch` mora em `lib/enoch.ex`.
 

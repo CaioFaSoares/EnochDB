@@ -1,13 +1,13 @@
 ---
 sprint: s01-nucleo-enoch
 step: 01_grilling
-status: em-curso
-data: 2026-10-13
+status: fechado
+data: 2026-10-15
 ---
 
 # s01-nucleo-enoch @ 01_grilling
 
-**Resultado:** em curso. Decisões parciais em `handovers/decisoes.md`.
+**Resultado:** decisões D1 a D38 registradas, sem pontos abertos. O dono leu `handovers/decisoes.md` e aceitou o conjunto em 2026-10-15, inclusive as iniciativas do agente listadas no topo do arquivo.
 
 **Skills chamadas:** `/grill-with-docs` (invocada pelo dono em 2026-10-13).
 
