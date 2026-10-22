@@ -13,7 +13,7 @@ O fluxo é: **interrogar → registrar decisões → especificar → fatiar → 
 | `03_spec` | converter decisões em especificação verificável | `handovers/spec.md` e, quando útil, `spec-tecnica.md` | conferir que todas as decisões aparecem como requisito ou fora de escopo |
 | `04_tickets` | dividir a especificação em fatias verticais ordenadas por dependência | `handovers/tickets.md` | aprovar granularidade e bloqueios antes de publicar trabalho |
 | `05_implement` | executar uma fatia autorizada por vez, test-first | `handovers/implementacao.md` | suíte relevante verde e caminho de uso exercitado |
-| `06_review` | comparar a entrega com a spec e os padrões documentados | `handovers/revisao.md` e `handovers/pr.md` | resolver ou registrar cada achado antes de abrir PR |
+| `06_review` | compare the delivery with the spec and the documented standards, and fix what is "corrigir agora" through fix issues run by the same loop as the implementation | `handovers/revisao.md`, `handovers/pr.md` and, when there are fixes, `handovers/correcoes.md` | resolve or record each finding before opening a PR |
 | `07_handoff` | deixar o próximo trabalho compreensível sem memória da sessão | `handovers/handoff.md` | leitura sem contexto deve bastar para começar |
 
 **Regra de avanço:** uma pessoa lê e aceita o handover da etapa anterior antes de começar a seguinte. Se o gate não aconteceu, a ficha não declara a etapa fechada.

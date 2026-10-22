@@ -183,5 +183,29 @@ defmodule Enoch.Storage do
   """
   @callback layout_version(t()) :: non_neg_integer()
 
-  @optional_callbacks layout_version: 1
+  @doc """
+  Recupera a instância de uma queda do transactor no meio da escrita (R5,
+  ADR-0003).
+
+  É opcional: um adaptador sem escrita por fases não tem o que recuperar. Quando
+  existe, `Enoch.Instance.Owner.checkout/1` a chama na entrega do storage ao
+  transactor novo — depois de uma queda, com o transactor anterior já morto e
+  nenhuma transação em curso —, e só ali: uma leitura do storage nunca recupera
+  (R03). Devolver `{:error, motivo}` impede a subida do transactor.
+  """
+  @callback recover(t()) :: :ok | {:error, term()}
+
+  @doc """
+  Confere o estado atual contra o log e reconstrói o atual se divergirem (R31,
+  D34).
+
+  É opcional e é o passo 2 da subida: quando existe, `Enoch.Instance.Boot` a chama
+  antes de o transactor subir, e `{:error, motivo}` impede a subida. A reconstrução
+  é uma transação vazia na ordem da D18 — o contador vai a ímpar antes de o estado
+  atual ser tocado e é publicado depois —, para nenhum leitor aceitar uma varredura
+  do presente pela metade (R04).
+  """
+  @callback verify(t()) :: :ok | {:error, term()}
+
+  @optional_callbacks layout_version: 1, recover: 1, verify: 1
 end

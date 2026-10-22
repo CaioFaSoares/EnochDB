@@ -13,17 +13,20 @@ defmodule Enoch.Transactor do
   chama incrementa o contador de admissão em `:atomics` antes de enviar a mensagem
   e o transactor o decrementa ao terminar. Acima do limite a rejeição volta antes de
   a mensagem entrar na caixa; com a admissão fechada só o caminho interno da subida
-  escreve, e é ele que usa a origem `:internal`. Antes de admitir, `transact/3`
-  reconcilia o contador com o tamanho real da caixa
-  (`Enoch.Instance.Admission.reconcile/1`): é o que desfaz a unidade que um chamador
-  morto entre incrementar e enviar deixou presa (D27).
+  escreve, e é ele que usa a origem `:internal`. When admission returns
+  `{:error, :admission_full}`, `transact/3` calls
+  `Enoch.Instance.Admission.repair_leak/1`, which frees the unit a caller that died
+  between incrementing and sending left stuck (D27) only when the transactor is idle
+  with an empty mailbox, and then tries to admit once more. Reconciling from the
+  mailbox on every rejection would erase admitted callers that have not sent yet.
 
-  O estado do adaptador e a referência do contador de admissão são lidos no `init`:
-  o primeiro do dono das tabelas (ver `Enoch.Instance.Owner`) e a segunda de
-  `Enoch.Instance.Admission.ref/1`, que lê o valor publicado no `Registry`; ali o
-  `init` zera o contador, porque a caixa nova nasce vazia. Na árvore da
-  instância o dono e a admissão vêm antes no `:rest_for_one`, então a queda de um
-  deles reinicia o transactor junto e o `init` relê o estado, sem estado defasado.
+  O estado do adaptador e a referência do contador de admissão são lidos no `init`: o
+  primeiro pelo `Enoch.Instance.Owner.checkout/1`, que recupera a instância de uma
+  queda antes de entregar o storage, e a segunda de `Enoch.Instance.Admission.ref/1`,
+  que lê o valor publicado no `Registry`; ali o `init` zera o contador, porque a caixa
+  nova nasce vazia. Na árvore da instância o dono e a admissão vêm antes no
+  `:rest_for_one`, e o transactor sobe no passo 3 da subida (`Enoch.Instance.Boot`),
+  com a admissão fechada: a recuperação só roda aqui, nunca numa leitura do storage.
 
   O `call` usa o tempo limite de quinze segundos do `canon/chat.md`. Uma transação
   que estoure o tempo pode ter sido aplicada; a defesa é uma chave de idempotência
@@ -70,52 +73,86 @@ defmodule Enoch.Transactor do
   Aplica uma transação crua a uma instância: as operações viram os datoms de uma
   única escrita.
 
-  Roda no processo de quem chama e é o único caminho de escrita: reconcilia o
-  contador de admissão e depois passa pela admissão antes de enviar a mensagem ao
-  transactor (R13), e o `transactor` da instância é resolvido por
-  `Enoch.Instance.Supervisor.transactor/1`. Devolve o `t` da transação gravada, ou o
-  erro explícito da admissão (`:admission_full` acima do limite e
+  Roda no processo de quem chama e é o único caminho de escrita: passa pela admissão
+  antes de enviar a mensagem ao transactor (R13), e o `transactor` da instância é
+  resolvido por `Enoch.Instance.Supervisor.transactor/1`. Devolve o `t` da transação
+  gravada, ou o erro explícito da admissão (`:admission_full` acima do limite e
   `:admission_closed` com a admissão fechada), da operação inválida ou do adaptador;
   a transação inteira é recusada, sem gravar nada.
 
-  A reconciliação vem antes do incremento porque um contador preso — a unidade que um
-  chamador morto entre incrementar e enviar vazou (D27) — barraria esta escrita e
-  nenhuma transação nova rodaria para corrigi-lo.
+  On `{:error, :admission_full}` the leak repair runs once
+  (`Enoch.Instance.Admission.repair_leak/1`): a unit leaked by a dead caller would
+  otherwise block every new write. It only acts when the transactor is idle with an
+  empty mailbox, and admission is then tried once more.
 
   A origem `:internal` é o caminho interno da subida, que incrementa a admissão e
-  escreve mesmo com ela fechada (D34, R31).
+  escreve mesmo com ela fechada (D34, R31), e por isso nunca recebe `:admission_closed`.
   """
   @spec transact(term(), [operation()], Admission.source()) ::
           {:ok, Enoch.Storage.tx()} | {:error, term()}
   def transact(instance, operations, source \\ :external) do
-    Admission.reconcile(instance)
+    ref = Admission.ref(instance)
 
-    with :ok <- Admission.admit(Admission.ref(instance), source) do
-      GenServer.call(Supervisor.transactor(instance), {:transact, operations}, @timeout)
+    case Admission.admit(ref, source) do
+      :ok ->
+        send_transaction(instance, operations)
+
+      {:error, :admission_full} ->
+        Admission.repair_leak(instance)
+        admit_after_reconcile(instance, ref, operations, source)
+
+      {:error, :admission_closed} = closed ->
+        closed
     end
+  end
+
+  defp admit_after_reconcile(instance, ref, operations, source) do
+    case Admission.admit(ref, source) do
+      :ok -> send_transaction(instance, operations)
+      {:error, :admission_full} = full -> full
+      {:error, :admission_closed} = closed -> closed
+    end
+  end
+
+  defp send_transaction(instance, operations) do
+    GenServer.call(Supervisor.transactor(instance), {:transact, operations}, @timeout)
   end
 
   @impl true
   def init(opts) do
     adapter = Keyword.fetch!(opts, :adapter)
-    storage = Owner.storage(Keyword.fetch!(opts, :owner))
     admission = Admission.ref(Keyword.fetch!(opts, :instance))
 
-    # A caixa nova nasce vazia: o `init` do transactor zera o contador de admissão
-    # (D27, R13).
-    Admission.reset(admission)
+    # A entrega do storage ao escritor novo recupera a instância de uma queda antes de
+    # o transactor começar a escrever (R03, ADR-0003). É o único ponto que recupera:
+    # `Enoch.Instance.Owner.storage/1` é só leitura.
+    case Owner.checkout(Keyword.fetch!(opts, :owner)) do
+      {:ok, storage} ->
+        # A caixa nova nasce vazia: o `init` do transactor zera o contador de admissão
+        # (D27, R13).
+        Admission.reset(admission)
 
-    {:ok, %{adapter: adapter, storage: storage, admission: admission}}
+        {:ok, %{adapter: adapter, storage: storage, admission: admission}}
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
   end
 
   @impl true
   def handle_call({:transact, operations}, _from, state) do
+    # A transação saiu da caixa e está em curso: o slot da admissão a conta até o
+    # `release/1` (R01, D27).
+    Admission.mark_in_flight(state.admission)
+
     reply =
       with {:ok, datoms} <- datoms(operations) do
         state.adapter.append(state.storage, datoms)
       end
 
-    # Uma transação admitida termina aqui, gravada ou recusada (D27).
+    # Uma transação admitida termina aqui, gravada ou recusada (D27). Desmarcar antes
+    # de liberar mantém a soma da caixa com a transação em curso dentro do contador.
+    Admission.clear_in_flight(state.admission)
     Admission.release(state.admission)
 
     {:reply, reply, state}

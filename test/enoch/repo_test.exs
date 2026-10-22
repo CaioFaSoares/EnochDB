@@ -34,7 +34,7 @@ defmodule Enoch.RepoTest do
 
   describe "use Enoch.Repo" do
     test "não aceita opções nesta sprint" do
-      assert_raise ArgumentError, ~r/não aceita opções nesta sprint/, fn ->
+      assert_raise ArgumentError, ~r/accepts no options in this sprint/, fn ->
         Code.compile_string("""
         defmodule Enoch.RepoTest.ComOpcoes do
           use Enoch.Repo, adapter: Enoch.Adapters.Memory

@@ -226,7 +226,10 @@ defmodule Enoch.Storage.Reader.MemoryTest do
   end
 
   # As leituras concorrentes com o escritor: cada uma captura o banco como valor e
-  # varre o atributo do caso, guardando a base, as linhas e o que a varredura leu.
+  # varre o atributo do caso, guardando a base, as linhas e o que a varredura leu. O
+  # `sleep(0)` cede a vez ao escritor entre as leituras: sem ele, sob a suíte inteira,
+  # a leitura em laço pode consumir a fatia de tempo do processo e o escritor não
+  # avançar nenhuma base durante as trezentas varreduras.
   defp read_concurrently(storage, times) do
     await_base(storage)
 
@@ -234,6 +237,7 @@ defmodule Enoch.Storage.Reader.MemoryTest do
       db = @adapter.db(storage)
       base = DB.basis_t(db)
       %{rows: rows, read: read} = scan_read(storage, fn -> @adapter.scan_aevt(db, a: 10) end)
+      Process.sleep(0)
       {base, rows, read}
     end
   end

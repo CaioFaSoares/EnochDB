@@ -4,8 +4,8 @@ defmodule Enoch do
 
   Uma instância é um banco com nome próprio, criado em tempo de execução (D32,
   ADR-0007). `start_link/1` sobe a árvore de supervisão da instância — o dono das
-  tabelas e o transactor, ver `Enoch.Instance.Supervisor` — e as chamadas
-  seguintes recebem o nome:
+  tabelas e a admissão — e executa a subida em sete passos, que inicia o transactor
+  com a admissão fechada; as chamadas seguintes recebem o nome:
 
       {:ok, _} =
         Enoch.start_link(
@@ -18,8 +18,9 @@ defmodule Enoch do
       Enoch.DB.basis_t(Enoch.db(MyApp.Db))
 
   Nesta fatia a API traz `start_link/1`, `transact/2` (só as operações cruas de
-  afirmar e retrair, R11) e `db/1`; `use Enoch.Repo` e o restante da API do e01 —
-  `q`, `pull`, `as_of` e `history` — entram nas fatias seguintes.
+  afirmar e retrair, R11), `db/1` e `child_spec/1` (para `{Enoch, opts}` como filho
+  de um supervisor, R14); `use Enoch.Repo` e o restante da API do e01 — `q`, `pull`,
+  `as_of` e `history` — entram nas fatias seguintes.
 
   `start_link/1` executa a sequência de subida em sete passos (D34, R31) e recebe
   as listas de módulos da instância: `schema:`, `functions:` e `rules:` (D35). O
@@ -29,6 +30,9 @@ defmodule Enoch do
   O nome da instância pode ser qualquer termo; o módulo de um `use Enoch.Repo` é o
   uso típico. O `adapter:` é o módulo que implementa `Enoch.Storage`, e as
   `storage_opts:` vão para o `adapter.open/1` do dono das tabelas.
+
+  `transact/2` e `db/1` sobre uma instância que não está no ar falham de um jeito só:
+  `ArgumentError` nomeando o nome recebido (R15).
 
   A árvore de pastas está em `docs/arquitetura.md`, o vocabulário em `CONTEXT.md`,
   as decisões em `docs/adr/` e os requisitos (R11, R13, R24, R30, R31) na spec em
@@ -45,14 +49,14 @@ defmodule Enoch do
   padrão 32, e `:status`, `:open` por padrão ou `:closed`, ver
   `Enoch.Instance.Admission`, D27), `:schema`, `:functions` e `:rules` (as listas de
   módulos da instância, D35). O dono das tabelas abre o storage, a admissão sobe com
-  o contador e o transactor sobe atrás dos dois.
+  o contador e a subida inicia o transactor depois dos passos 1 e 2.
 
   A árvore de pé, `Enoch.Instance.Boot.run/2` executa a sequência de subida em sete
-  passos (D34, R31) — a versão do layout, a conferência do estado atual, a admissão
-  fechada, o registro das funções e regras, e a abertura da admissão com a
-  telemetria da base. Uma falha em qualquer passo impede a subida: a árvore é
+  passos (D34, R31) — a versão do layout, a conferência do estado atual, o transactor
+  com a admissão fechada, o registro das funções e regras, e a abertura da admissão
+  com a telemetria da base. Uma falha em qualquer passo impede a subida: a árvore é
   derrubada e `{:error, motivo}` volta com o erro explícito do passo que falhou, com
-  a admissão fechada.
+  a admissão fechada — nenhuma escrita externa passa durante a subida.
   """
   @spec start_link(keyword()) :: Supervisor.on_start()
   def start_link(opts) do
@@ -80,19 +84,53 @@ defmodule Enoch do
   `{:error, :admission_full}` volta antes de a mensagem entrar na caixa do transactor
   e, com a admissão fechada, uma escrita externa é rejeitada com
   `{:error, :admission_closed}`.
+
+  Uma instância que não está no ar falha com `ArgumentError`, e não com um erro de
+  processo (`Enoch.Instance.Supervisor.fetch!/1`); é a mesma falha de `Enoch.db/1`
+  (R15).
   """
   @spec transact(term(), [Enoch.Transactor.operation()]) ::
           {:ok, Enoch.Storage.tx()} | {:error, term()}
-  def transact(name, operations), do: Enoch.Transactor.transact(name, operations)
+  def transact(name, operations) do
+    Enoch.Transactor.transact(Enoch.Instance.Supervisor.fetch!(name), operations)
+  end
 
   @doc """
   O banco como valor da instância, na base publicada (D16, D18).
 
   O valor é imutável e custa O(1): guarda as referências das tabelas e o `basis_t`,
   que se lê com `Enoch.DB.basis_t/1`.
+
+  Uma instância que não está no ar falha com `ArgumentError`, do mesmo jeito que
+  `Enoch.transact/2` (R15).
   """
   @spec db(term()) :: Enoch.DB.t()
   def db(name) do
-    Enoch.Instance.Owner.db(Enoch.Instance.Supervisor.owner(name))
+    name
+    |> Enoch.Instance.Supervisor.fetch!()
+    |> Enoch.Instance.Supervisor.owner()
+    |> Enoch.Instance.Owner.db()
+  end
+
+  @doc """
+  A especificação de `{Enoch, opts}` como filho de um supervisor.
+
+  Permite embutir uma instância na árvore da aplicação:
+
+      children = [
+        {Enoch, name: MyApp.Db, adapter: Enoch.Adapters.Memory, storage_opts: [max_memory: :infinity]}
+      ]
+
+  O `id` leva o nome da instância, então duas instâncias convivem no mesmo
+  supervisor, e o tipo é `:supervisor`, porque `start_link/1` sobe a árvore da
+  instância (R14).
+  """
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
+  def child_spec(opts) do
+    %{
+      id: {__MODULE__, Keyword.fetch!(opts, :name)},
+      start: {__MODULE__, :start_link, [opts]},
+      type: :supervisor
+    }
   end
 end

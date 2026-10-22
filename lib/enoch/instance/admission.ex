@@ -14,11 +14,19 @@ defmodule Enoch.Instance.Admission do
   ele, e o `init` do novo zera o contador, porque a caixa nova nasce vazia (D27). A
   mesma referência `:atomics` continua valendo para quem já a tinha.
 
-  Os três slots do `:atomics`:
+  Os quatro slots do `:atomics`:
 
   1. o contador de admissão: as transações admitidas e ainda não terminadas;
   2. o limite de admissão;
-  3. o estado, fechado ou aberto.
+  3. o estado, fechado ou aberto;
+  4. a transação em curso: vale `1` entre o começo do `handle_call` do transactor e o
+     `release/1`, e `0` fora dele.
+
+  O slot 4 é o que conta a transação que já saiu da caixa e ainda não foi liberada.
+  Sem ele, a reconciliação veria só o `message_queue_len` e subestimaria as transações
+  admitidas, e a admissão admitiria acima do limite — a corrida da issue #11. O
+  transactor o marca em `mark_in_flight/1` e o desmarca em `clear_in_flight/1`, antes
+  de `release/1`.
 
   Quem chama lê a referência uma vez, com `ref/1`, e opera o contador no próprio
   processo (`admit/2` e `release/1`). O `ref/1` sai do valor registrado no
@@ -26,18 +34,33 @@ defmodule Enoch.Instance.Admission do
   escrita sem um processo a mais. As mudanças de estado (`open/1` e `close/1`) são
   chamadas ao processo da admissão, o único que escreve nesse slot.
 
-  Fechada, a admissão aceita só o caminho interno da subida: `admit/2` com `:internal`,
-  usado por `Enoch.Transactor.transact/3`. É o passo 3 da sequência de subida, e o passo
-  7 a abre (D34, R31); uma falha na subida a deixa fechada.
+  A admissão **nasce fechada**: o `init` a põe fechada qualquer que seja o estado
+  configurado (D34, R31). Fechada, ela aceita só o caminho interno da subida — `admit/2`
+  com `:internal`, usado por `Enoch.Transactor.transact/3` — e nenhuma escrita externa
+  passa entre a subida da árvore e o passo 7, que abre a admissão quando a instância
+  sobe para ficar aberta. A opção `:status` é o estado desejado ao fim da subida, não o
+  estado inicial; uma falha na subida a deixa fechada.
 
-  Um chamador que morre entre incrementar e enviar deixa uma unidade presa no contador.
-  A reconciliação de `reconcile/1` lê o tamanho real da caixa do transactor
-  (`message_queue_len`) e deixa o contador igual a ele: é a checagem aproximada que a
-  D27 escolheu para esse caso. Ela vale com o transactor sem transação em andamento,
-  porque uma transação em curso já saiu da caixa e ainda não foi decrementada. O
-  caminho da escrita (`Enoch.Transactor.transact/3`) reconcilia antes de admitir: sem
-  isso, a unidade presa barraria toda escrita nova ao encher o contador, e nenhuma
-  transação nova rodaria para corrigi-lo.
+  A caller that dies between incrementing and sending leaves a unit stuck in the
+  counter. `reconcile/1` reads the transactor's real mailbox size (`message_queue_len`)
+  plus the transaction in progress (`in_flight/1`) and sets the counter to that sum:
+  the approximate check D27 chose for this case. The write path
+  (`Enoch.Transactor.transact/3`) does not call it. On `{:error, :admission_full}` it
+  calls `repair_leak/1`, which rewrites the counter only when the transactor has no
+  transaction in progress and an empty mailbox (the signature of a leaked unit), and
+  only if no other caller changed the counter since it was read; then it tries to
+  admit once more.
+
+  ## The overshoot window
+
+  The limit stays approximate, as R13 and ADR-0004:33 accept: a caller admitted that
+  **has not sent yet** shows up neither in `message_queue_len` nor in the in-flight
+  slot. While the transactor is busy or has messages waiting, `repair_leak/1` does
+  nothing and the limit is exact. The overshoot happens only when every admitted unit
+  is still between incrementing and sending, the transactor is idle with an empty
+  mailbox, and a rejected caller repairs in that instant: the mailbox can then exceed
+  the limit by at most the callers in that window. An exact limit that also repairs a
+  dead caller's unit (a monitor per admission) is a work item.
 
   Referências: `docs/arquitetura.md` (`instance/admission.ex`), ADR-0004, ADR-0008 e a
   spec em `docs/_sprints/s01-nucleo-enoch/03_spec/handovers/spec.md` (R13). A telemetria
@@ -54,10 +77,11 @@ defmodule Enoch.Instance.Admission do
   # que publica um valor no registro — a própria referência do contador.
   @key :admission
 
-  # Os três slots do `:atomics`.
+  # Os quatro slots do `:atomics`.
   @admitted 1
   @limit 2
   @status 3
+  @in_flight 4
 
   # Os dois estados da admissão: fechada aceita só o caminho interno da subida (D34).
   @closed 0
@@ -88,8 +112,9 @@ defmodule Enoch.Instance.Admission do
 
   Opções: `:name` (obrigatória, o nome registrado, ver `name/1`), `:instance`
   (obrigatória, o nome da instância — a chave do registro) e `:opts` (as opções da
-  admissão: `:limit`, um inteiro positivo, e `:status`, `:open` ou `:closed`). Um valor
-  inválido impede a subida da instância, com erro explícito.
+  admissão: `:limit`, um inteiro positivo, e `:status`, `:open` ou `:closed`). A
+  admissão nasce **fechada**; `:status` é o estado que o passo 7 da subida aplica
+  (D34, R31). Um valor inválido impede a subida da instância, com erro explícito.
   """
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -120,8 +145,8 @@ defmodule Enoch.Instance.Admission do
 
       [] ->
         raise ArgumentError,
-              "a instância #{inspect(instance)} não tem admissão: o contador de " <>
-                "admissão nasce com a árvore da instância (Enoch.Instance.Supervisor)"
+              "instance #{inspect(instance)} has no admission counter: the admission " <>
+                "starts with the instance tree (Enoch.Instance.Supervisor)"
     end
   end
 
@@ -130,9 +155,10 @@ defmodule Enoch.Instance.Admission do
 
   Roda no processo de quem chama, antes de a mensagem entrar na caixa do transactor
   (D27). Devolve `:ok`, `{:error, :admission_closed}` com a admissão fechada ou
-  `{:error, :admission_full}` acima do limite; no erro de limite o incremento do
-  chamador rejeitado é desfeito, e nada é enviado. O caminho `:internal` da subida
-  incrementa sem consultar estado nem limite: a subida escreve sempre (D34).
+  `{:error, :admission_full}` acima do limite; no erro de limite o chamador rejeitado
+  não consome unidade — o laço de compare-and-set não chega a incrementar —, e nada é
+  enviado. O caminho `:internal` da subida incrementa sem consultar estado nem limite:
+  a subida escreve sempre (D34).
   """
   @spec admit(ref(), source()) ::
           :ok | {:error, :admission_closed} | {:error, :admission_full}
@@ -142,21 +168,35 @@ defmodule Enoch.Instance.Admission do
     if :atomics.get(ref, @status) == @closed do
       {:error, :admission_closed}
     else
-      admitted = :atomics.add_get(ref, @admitted, 1)
-
-      if admitted > :atomics.get(ref, @limit) do
-        # O chamador rejeitado desfaz o próprio incremento (R13).
-        :atomics.sub(ref, @admitted, 1)
-        {:error, :admission_full}
-      else
-        :ok
-      end
+      admit_within_limit(ref)
     end
   end
 
   def admit(ref, :internal) do
     :atomics.add_get(ref, @admitted, 1)
     :ok
+  end
+
+  # O incremento só acontece se o contador ainda tem vaga (R13, issue #11 R01). Um
+  # incremento seguido de desfazimento deixaria o desfazimento correr contra a
+  # reconciliação de outro chamador: a reconciliação reescreve o contador com a caixa
+  # mais a transação em curso, e o desfazimento atrasado o baixaria abaixo da caixa —
+  # a admissão admitiria acima do limite sem ninguém na janela de excesso (os
+  # admitidos que ainda não enviaram). O laço de compare-and-set não escreve no
+  # caminho de rejeição, e a única escrita que baixa o contador é a liberação de uma
+  # transação admitida.
+  defp admit_within_limit(ref) do
+    limit = :atomics.get(ref, @limit)
+    admitted = :atomics.get(ref, @admitted)
+
+    if admitted >= limit do
+      {:error, :admission_full}
+    else
+      case :atomics.compare_exchange(ref, @admitted, admitted, admitted + 1) do
+        :ok -> :ok
+        _changed -> admit_within_limit(ref)
+      end
+    end
   end
 
   @doc """
@@ -174,33 +214,84 @@ defmodule Enoch.Instance.Admission do
   end
 
   @doc """
-  Zera o contador: o `init` do transactor chama, porque a caixa nova nasce vazia (D27).
+  Zera o contador e a transação em curso: o `init` do transactor chama, porque a caixa
+  nova nasce vazia (D27).
 
   É o que devolve a zero o contador de admissão depois da queda do transactor (R13).
   """
   @spec reset(ref()) :: :ok
-  def reset(ref), do: :atomics.put(ref, @admitted, 0)
+  def reset(ref) do
+    :atomics.put(ref, @admitted, 0)
+    :atomics.put(ref, @in_flight, 0)
+  end
 
   @doc """
-  Deixa o contador igual às transações que estão de fato na caixa do transactor.
+  Marca que a transação saiu da caixa e está em curso no transactor (D27).
+
+  O `handle_call` do transactor chama antes de gravar: a transação já não conta na
+  caixa da entrada e ainda não foi liberada, e é a soma das duas que não pode passar do
+  limite.
+  """
+  @spec mark_in_flight(ref()) :: :ok
+  def mark_in_flight(ref), do: :atomics.put(ref, @in_flight, 1)
+
+  @doc """
+  Desmarca a transação em curso: o transactor chama logo antes de `release/1`.
+
+  A ordem importa: desmarcar antes de liberar mantém a soma da caixa com a transação em
+  curso menor ou igual ao contador, e a reconciliação nunca a aumenta.
+  """
+  @spec clear_in_flight(ref()) :: :ok
+  def clear_in_flight(ref), do: :atomics.put(ref, @in_flight, 0)
+
+  @doc """
+  A transação em curso: `1` enquanto o transactor grava uma, `0` fora disso.
+
+  Só a observação e a reconciliação a leem; quem a escreve é o transactor, com
+  `mark_in_flight/1` e `clear_in_flight/1`.
+  """
+  @spec in_flight(term()) :: 0 | 1
+  def in_flight(instance), do: :atomics.get(ref(instance), @in_flight)
+
+  @doc """
+  Deixa o contador igual às transações que estão de fato na caixa e em curso.
 
   É a reconciliação do chamador que morreu entre incrementar e enviar (D27): lê o
-  `message_queue_len` do transactor e escreve o mesmo número no contador. A leitura é
-  a checagem aproximada que a D27 escolheu — um chamador admitido que ainda não enviou
-  não aparece na caixa, e o incremento dele se perde. Sem ela, a unidade presa barraria
-  toda escrita nova ao encher o contador, e nenhuma transação nova rodaria para
-  corrigi-lo; por isso `Enoch.Transactor.transact/3` reconcilia antes de admitir.
+  `message_queue_len` do transactor e a transação em curso (`in_flight/1`), e escreve a
+  soma no contador. É a checagem aproximada que a D27 escolheu — um chamador admitido
+  que ainda não enviou não aparece em nenhuma das duas, e o incremento dele se perde.
+  Sem ela, a unidade presa barraria toda escrita nova ao encher o contador, e nenhuma
+  transação nova rodaria para corrigi-lo; por isso `Enoch.Transactor.transact/3`
+  reconcilia quando a admissão está cheia e tenta de novo uma vez.
 
-  Vale com o transactor sem transação em andamento: uma transação em curso já saiu da
-  caixa e o transactor só a decrementa ao terminar, então escrever o tamanho da caixa
-  no contador por baixo dela admitiria acima do limite. Com o transactor fora do ar a
-  caixa não existe e o contador vai a zero; o `init` do novo transactor o zera de
-  qualquer forma.
+  Com o transactor fora do ar a caixa não existe e o contador vai a zero; o `init` do
+  novo transactor o zera de qualquer forma.
   """
   @spec reconcile(term()) :: :ok
   def reconcile(instance) do
     ref = ref(instance)
     :atomics.put(ref, @admitted, pending(instance, ref))
+  end
+
+  @doc """
+  Repairs units leaked by callers that died between incrementing and sending, without
+  erasing callers that are about to send.
+
+  It acts only when the transactor has no transaction in progress and nothing in its
+  mailbox, and it resets the counter with a compare-and-set against the value it read,
+  so an admission that happened in between keeps its unit. `Enoch.Transactor.transact/3`
+  calls it on `{:error, :admission_full}`.
+  """
+  @spec repair_leak(term()) :: :ok
+  def repair_leak(instance) do
+    ref = ref(instance)
+    observed = :atomics.get(ref, @admitted)
+
+    if observed > 0 and pending(instance, ref) == 0 do
+      :atomics.compare_exchange(ref, @admitted, observed, 0)
+    end
+
+    :ok
   end
 
   @doc """
@@ -210,8 +301,8 @@ defmodule Enoch.Instance.Admission do
   def open(instance), do: GenServer.call(name(instance), :open)
 
   @doc """
-  Fecha a admissão: é o passo 3 da sequência de subida, e a falha de um passo a deixa
-  fechada (D34, R31). Só o caminho interno escreve nesse estado.
+  Fecha a admissão: o estado inicial da árvore da instância e o de uma subida que falha
+  (D34, R31). Só o caminho interno escreve nesse estado.
   """
   @spec close(term()) :: :ok
   def close(instance), do: GenServer.call(name(instance), :close)
@@ -244,10 +335,14 @@ defmodule Enoch.Instance.Admission do
     admission_opts = Keyword.get(opts, :opts, [])
 
     with {:ok, limit} <- limit_option(admission_opts),
-         {:ok, status} <- status_option(admission_opts) do
-      ref = :atomics.new(3, signed: true)
+         {:ok, _desired_status} <- status_option(admission_opts) do
+      ref = :atomics.new(4, signed: true)
       :atomics.put(ref, @limit, limit)
-      :atomics.put(ref, @status, status)
+
+      # A admissão nasce fechada (D34, R31): o passo 7 da subida a abre quando a
+      # instância sobe para ficar aberta. O `:status` configurado é o estado desejado
+      # ao fim da subida, não o inicial.
+      :atomics.put(ref, @status, @closed)
 
       # A referência é publicada como valor do registro para quem chama lê-la sem
       # passar por mensagem (D27).
@@ -272,11 +367,9 @@ defmodule Enoch.Instance.Admission do
 
   defp key(instance), do: {@key, instance}
 
-  # O tamanho real da caixa do transactor, ou o contador em vigor quando ele está no
-  # meio de uma transação: `:running` é o transactor executando, e nesse estado a caixa
-  # não conta a transação em curso, que só é decrementada ao terminar. Fora isso
-  # (`:waiting` parado no `receive`, `:suspended`) não há transação em andamento e a
-  # caixa é a fonte.
+  # O tamanho real da caixa do transactor mais a transação em curso, ou o contador em
+  # vigor quando o transactor não responde: uma transação em curso já saiu da caixa e
+  # só é decrementada em `release/1`, então o slot `@in_flight` a conta.
   defp pending(instance, ref) do
     case GenServer.whereis(Supervisor.transactor(instance)) do
       transactor when is_pid(transactor) -> inbox(transactor, ref)
@@ -285,9 +378,8 @@ defmodule Enoch.Instance.Admission do
   end
 
   defp inbox(transactor, ref) do
-    case Process.info(transactor, [:message_queue_len, :status]) do
-      [message_queue_len: _queue_len, status: :running] -> :atomics.get(ref, @admitted)
-      [message_queue_len: queue_len, status: _status] -> queue_len
+    case Process.info(transactor, :message_queue_len) do
+      {:message_queue_len, queue_len} -> queue_len + :atomics.get(ref, @in_flight)
       nil -> :atomics.get(ref, @admitted)
     end
   end

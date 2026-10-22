@@ -45,7 +45,7 @@ defmodule Enoch.Storage.ContractCase do
         %{storage: storage}
       end
 
-      test "o contrato não recebe consulta Datalog e não tem compile/2" do
+      test "the contract receives no Datalog query and has no compile/2" do
         callbacks = Enoch.Storage.behaviour_info(:callbacks)
         names = Enum.map(callbacks, &elem(&1, 0))
 
@@ -54,31 +54,48 @@ defmodule Enoch.Storage.ContractCase do
         refute :q in names
         refute :query in names
 
-        for callback <- [:open, :db, :append, :scan_eavt, :scan_aevt, :scan_avet, :scan_vaet] do
-          assert callback in names, "o contrato não declara #{callback}"
+        for callback <- [
+              :open,
+              :db,
+              :append,
+              :scan_eavt,
+              :scan_aevt,
+              :scan_avet,
+              :scan_vaet,
+              :rows_read
+            ] do
+          assert callback in names, "the contract does not declare #{callback}"
         end
 
-        for callback <- [:scan_eavt, :scan_aevt, :scan_avet, :scan_vaet] do
-          assert function_exported?(@adapter, callback, 2),
-                 "#{inspect(@adapter)} não implementa #{callback}/2"
+        for callback <- [:scan_eavt, :scan_aevt, :scan_avet, :scan_vaet, :rows_read] do
+          assert function_exported?(@adapter, callback, arity(callback)),
+                 "#{inspect(@adapter)} does not implement #{callback}"
         end
       end
 
-      test "cada varredura exige o filtro do seu índice", %{storage: storage} do
+      test "each scan requires its index filter", %{storage: storage} do
         db = @adapter.db(storage)
 
-        assert_raise ArgumentError, ~r/exige a opção :e/, fn -> @adapter.scan_eavt(db, a: 10) end
-        assert_raise ArgumentError, ~r/exige a opção :a/, fn -> @adapter.scan_aevt(db, e: 100) end
+        assert_raise ArgumentError, ~r/requires the :e option/, fn ->
+          @adapter.scan_eavt(db, a: 10)
+        end
 
-        assert_raise ArgumentError, ~r/exige a opção :a/, fn ->
+        assert_raise ArgumentError, ~r/requires the :a option/, fn ->
+          @adapter.scan_aevt(db, e: 100)
+        end
+
+        assert_raise ArgumentError, ~r/requires the :a option/, fn ->
           @adapter.scan_avet(db, v: 1)
         end
 
         assert_raise ArgumentError, ~r/:min_v/, fn -> @adapter.scan_avet(db, a: 10, min_v: 1) end
-        assert_raise ArgumentError, ~r/exige a opção :v/, fn -> @adapter.scan_vaet(db, a: 10) end
+
+        assert_raise ArgumentError, ~r/requires the :v option/, fn ->
+          @adapter.scan_vaet(db, a: 10)
+        end
       end
 
-      test "afirmar, retrair e reafirmar o mesmo (e, a, v): três linhas no histórico, um datom atual",
+      test "asserting, retracting and asserting the same (e, a, v): three history rows, one current datom",
            %{storage: storage} do
         assert {:ok, 1} = @adapter.append(storage, [{100, 10, 7, true}])
         assert {:ok, 2} = @adapter.append(storage, [{100, 10, 7, false}])
@@ -102,7 +119,7 @@ defmodule Enoch.Storage.ContractCase do
         assert reconstruct(do_historico) == escrito
       end
 
-      test "as linhas do mesmo (e, a, v) chegam adjacentes e ordenadas por tx", %{
+      test "the rows of the same (e, a, v) arrive adjacent and ordered by tx", %{
         storage: storage
       } do
         assert {:ok, 1} = @adapter.append(storage, [{100, 10, 7, true}, {101, 10, 7, true}])
@@ -129,7 +146,9 @@ defmodule Enoch.Storage.ContractCase do
                ]
       end
 
-      test "EAVT: por entidade, com pushdown por a, no presente e no passado", %{storage: storage} do
+      test "EAVT: by entity, with pushdown by a, in the present and in the past", %{
+        storage: storage
+      } do
         assert {:ok, 1} =
                  @adapter.append(storage, [
                    {100, 10, 1, true},
@@ -154,7 +173,9 @@ defmodule Enoch.Storage.ContractCase do
         assert @adapter.scan_eavt(@adapter.db(storage), e: 100, a: 10) == []
       end
 
-      test "AEVT: por atributo, com pushdown por e, no presente e no passado", %{storage: storage} do
+      test "AEVT: by attribute, with pushdown by e, in the present and in the past", %{
+        storage: storage
+      } do
         assert {:ok, 1} =
                  @adapter.append(storage, [
                    {100, 10, 1, true},
@@ -175,7 +196,9 @@ defmodule Enoch.Storage.ContractCase do
         assert @adapter.scan_aevt(@adapter.db(storage), a: 20) == [{100, 20, 3, nil, nil}]
       end
 
-      test "AVET: por atributo e valor ou faixa, no presente e no passado", %{storage: storage} do
+      test "AVET: by attribute and value or range, in the present and in the past", %{
+        storage: storage
+      } do
         assert {:ok, 1} =
                  @adapter.append(storage, [
                    {100, 10, 5, true},
@@ -199,8 +222,9 @@ defmodule Enoch.Storage.ContractCase do
                  sorted([{101, 10, 7, nil, nil}, {102, 10, 9, nil, nil}])
       end
 
-      test "VAET: por valor referência, com pushdown por a, no presente e no passado",
-           %{storage: storage} do
+      test "VAET: by reference value, with pushdown by a, in the present and in the past", %{
+        storage: storage
+      } do
         assert {:ok, 1} =
                  @adapter.append(storage, [
                    {100, 20, 101, true},
@@ -229,7 +253,41 @@ defmodule Enoch.Storage.ContractCase do
                  sorted([{102, 20, 101, nil, nil}, {100, 30, 101, nil, nil}])
       end
 
-      test "banco de base L com a transação L+1 completa antes da varredura lê consistente com L",
+      test "a tuple value scans by equality, in the present and in the past", %{
+        storage: storage
+      } do
+        assert {:ok, 1} =
+                 @adapter.append(storage, [
+                   {100, 10, {:a, :b}, true},
+                   {101, 10, {:a, :c}, true},
+                   {102, 10, 7, true}
+                 ])
+
+        db1 = @adapter.db(storage)
+        assert {:ok, 2} = @adapter.append(storage, [{100, 10, {:a, :b}, false}])
+
+        assert @adapter.scan_avet(db1, a: 10, v: {:a, :b}) == [{100, 10, {:a, :b}, 1, true}]
+        assert @adapter.scan_avet(db1, a: 10, v: {:x, :y}) == []
+
+        assert sorted(@adapter.scan_avet(db1, a: 10, min_v: {:a, :b}, max_v: {:a, :c})) ==
+                 sorted([{100, 10, {:a, :b}, 1, true}, {101, 10, {:a, :c}, 1, true}])
+
+        assert @adapter.scan_avet(@adapter.db(storage), a: 10, v: {:a, :b}) == []
+
+        assert sorted(@adapter.scan_vaet(db1, v: {:a, :c})) == [{101, 10, {:a, :c}, 1, true}]
+
+        assert sorted(@adapter.scan_aevt(db1, a: 10)) ==
+                 sorted([
+                   {100, 10, {:a, :b}, 1, true},
+                   {101, 10, {:a, :c}, 1, true},
+                   {102, 10, 7, 1, true}
+                 ])
+
+        assert sorted(@adapter.scan_aevt(@adapter.db(storage), a: 10)) ==
+                 sorted([{101, 10, {:a, :c}, nil, nil}, {102, 10, 7, nil, nil}])
+      end
+
+      test "a base L database with transaction L+1 complete before the scan reads consistently with L",
            %{storage: storage} do
         assert {:ok, 1} = @adapter.append(storage, [{100, 10, 1, true}])
 
@@ -244,6 +302,11 @@ defmodule Enoch.Storage.ContractCase do
       end
 
       # --- auxiliares da suíte ---------------------------------------------------
+
+      # A aridade do callback nos dois nomes: as varreduras levam o banco e as
+      # opções; o contador de linhas leva o storage.
+      defp arity(:rows_read), do: 1
+      defp arity(_callback), do: 2
 
       defp sorted(rows), do: Enum.sort(rows)
 

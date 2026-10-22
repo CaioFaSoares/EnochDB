@@ -1,8 +1,9 @@
 # Review guide — what EnochDB does today
 
-Manual testing guide for the `s01` slice of the `e01` epic. Everything here was executed on 2026-10-15 with
-Elixir 1.20.4 / OTP 29.1.1 and Determinate Nix 3.22.5; the "expected" blocks are the observed output, not a
-description of it. Commands run from the repository root.
+Manual testing guide for the `s01` slice of the `e01` epic. The sections below were executed with
+Elixir 1.20.4 / OTP 29.1.1: §3 and §4 were re-executed on 2026-10-20, after the review fixes of issue #11, and
+the Nix commands in §2 were executed on 2026-10-15 with Determinate Nix 3.22.5 and not re-run. The "expected"
+blocks are the observed output, not a description of it. Commands run from the repository root.
 
 Scope note: this guide covers the code and the tooling. The sprint artefacts (spec, tickets, handovers) live in
 `docs/_sprints/s01-nucleo-enoch/`, and the design decisions in the ADRs under `docs/adr/`. Those are still
@@ -18,7 +19,8 @@ One Elixir package, `enoch`, with a single adapter and no query layer yet:
 - `Enoch.Adapters.Memory` — two ETS tables (insert-only history and current state) with a base counter.
 - `Enoch.Storage` — the adapter behaviour, plus `Enoch.Storage.ContractCase`, a contract suite an external adapter can reuse.
 - `use Enoch.Repo` — a thin module that delegates to the functional core by instance name.
-- Bounded admission, writer recovery after a crash, and one telemetry event on boot.
+- Bounded admission, transactor recovery after a crash, and one telemetry event on boot.
+- `Enoch.child_spec/1` — the instance as a `{Enoch, opts}` child of an application supervisor.
 
 Not built yet: the Datalog evaluator (`q`), `pull`, `as_of`, `:history`, the schema DSL and installer,
 `:decimal` and the other types, the SQLite adapter, data migrations, and the example application. Those are
@@ -28,13 +30,13 @@ sprints `s02` to `s05`.
 
 ```bash
 mix deps.get          # deps are already vendored in deps/; this is a no-op check
-mix test              # 50 tests
+mix test              # 70 tests
 ```
 
 Expected:
 
 ```
-Result: 50 passed
+Result: 70 passed
 ```
 
 Through Nix instead (pinned toolchain, `beam.packages.erlang_29.elixir_1_20`):
@@ -46,7 +48,7 @@ nix run .#estado                   # derived state of epics, sprints and backlog
 nix flake check                    # devShell + both apps + checks.<system>.test
 ```
 
-Expected: `nix run .#test` prints `Result: 50 passed`; `nix flake check` ends with
+Expected: `nix run .#test` prints `Result: 71 passed`; `nix flake check` ends with
 `✅ checks.aarch64-darwin.test (previously built)` and exit 0.
 
 > **Nix needs the files visible to git.** Nix reads the git tree, so an untracked `flake.nix` or untracked
@@ -101,7 +103,9 @@ telemetry: {[:enoch, :boot], %{basis_t: 0}, %{instance: :demo}}
 ```
 
 The owner of the tables is `Enoch.Instance.Owner`, so the tables outlive both the admission and the transactor.
-The boot event is the seventh step of the boot sequence and carries the base.
+The admission is born closed with the tree and only the boot's step 7 opens it; the transactor itself is started
+by step 3, after the layout check and the current-state check. The boot event is the seventh step and carries the
+base.
 
 ### 4.2 The four index scans and the rows-read counter
 
@@ -123,12 +127,13 @@ scan_eavt e: 100: [{100, 10, 7, nil, nil}]
 scan_aevt a: 10: [{100, 10, 7, nil, nil}]
 scan_avet a: 10, 5..8: [{100, 10, 7, nil, nil}]
 scan_vaet v: 7: [{100, 10, 7, nil, nil}]
-rows read counter: 4
+rows read counter: 5
 ```
 
 The datom shape is `{e, a, v, tx, added}`; the first three fields are the fact, and `tx`/`added` are `nil` in the
 current-state index because it only holds live datoms. `rows_read/1` is the deterministic metric behind the
-"the present does not pay for the history" criterion.
+"the present does not pay for the history" criterion. The counter is cumulative since `open/1`, so the total is 5
+here — the `scan_eavt` of §3 plus the four scans above; on a fresh instance the same four scans show 4.
 
 ### 4.3 Two instances are independent
 
@@ -222,42 +227,72 @@ repo db vs functional db: {1, 1}
 ```
 
 The repo is only a name: identical results through the module and through the functional API. Passing options to
-the macro raises — and that message is still in Portuguese, one of the few user-visible Portuguese strings left
-in the code path:
+the macro raises, with the message in English:
 
 ```
 use Enoch.Repo with options: {:raised,
- "use Enoch.Repo não aceita opções nesta sprint, recebi: [quarantine: :yes]"}
+ "use Enoch.Repo accepts no options in this sprint, got: [quarantine: :yes]"}
 ```
+
+### 4.7 Embedding the instance and an unknown instance
+
+```elixir
+{:ok, _app} =
+  Supervisor.start_link(
+    [{Enoch, [name: :embedded, adapter: Enoch.Adapters.Memory, storage_opts: [max_memory: :infinity]]}],
+    strategy: :one_for_one
+  )
+
+{:ok, 1} = Enoch.transact(:embedded, [[:add, 1, 10, 7]])
+Enoch.transact(:nobody, [[:add, 1, 10, 7]])
+Enoch.db(:nobody)
+```
+
+Expected:
+
+```
+embedded instance: {:ok, 1}
+transact(:nobody, ...): {:raised, ArgumentError, "instance :nobody is not running: start it with Enoch.start_link/1"}
+db(:nobody): {:raised, ArgumentError, "instance :nobody is not running: start it with Enoch.start_link/1"}
+```
+
+`Enoch.child_spec/1` gives the instance the id `{Enoch, name}` and the type `:supervisor`, so `{Enoch, opts}` is a
+normal child of an application supervisor. An instance that is not running fails the same way through both
+functions — one documented `ArgumentError`, not a `GenServer.call` exit.
 
 ## 5. The suite, file by file
 
-`mix test` runs 50 tests. To review one behaviour at a time:
+`mix test` runs 70 tests. To review one behaviour at a time:
 
 | Command | What it proves |
 | --- | --- |
-| `mix test test/enoch/application_test.exs` | the OTP app starts with an empty global tree |
-| `mix test test/enoch/adapters/memory_test.exs` | `max_memory` is mandatory, two ETS tables plus the `:atomics` counter, the writer order `2t+1 → history → current → 2t+2`, and the history checked in the table itself |
-| `mix test test/enoch/adapters/memory_recovery_test.exs` | recovery after a crash mid-write: orphan rows removed, current state rebuilt, counter published at `2(t+1)`, next transaction `t+2`, tables handed to the heir |
+| `mix test test/enoch/application_test.exs` | the OTP app starts with the global registry of instances |
+| `mix test test/enoch/adapters/memory_test.exs` | `max_memory` is mandatory, two ETS tables plus the `:atomics` counter, the transactor order `2t+1 → history → current → 2t+2`, the history checked in the table itself, and a reader that never accepts a torn current scan during the step 2 rebuild |
+| `mix test test/enoch/adapters/memory_recovery_test.exs` | recovery after a crash mid-write: orphan rows removed, current state rebuilt, counter published at `2(t+1)`, next transaction `t+2`, and the tables staying with the owner (no heir) |
 | `mix test test/enoch/storage/contract_test.exs` | the contract suite, run against the `Memory` adapter (the same suite an external adapter reuses) |
 | `mix test test/enoch/storage/external_adapter_test.exs` | the contract suite run from outside `lib/enoch/adapters` |
 | `mix test test/enoch/storage/reader_test.exs` | the reader: current state only when the counter validates, fallback to history otherwise, concurrent read with continuous write, and the same rows read before and after N retractions |
-| `mix test test/enoch/instance/admission_test.exs` | the limit, the closed and open states, the counter reset on transactor restart, and the reconciliation with `message_queue_len` |
+| `mix test test/enoch/instance/admission_test.exs` | the limit, the closed and open states, the counter reset on transactor restart, the reconciliation with `message_queue_len`, and a burst of concurrent callers rejected with the mailbox full — the limit is the approximate one of R13 and ADR-0004:33, whose overshoot window is documented in the module |
+| `mix test test/enoch/instance/boot_test.exs` | the seven-step boot: a newer layout, the admission closed through the boot, a tampered current state rebuilt, `verify/1` errors, duplicate function or rule names, the boot event, and modules from outside the package |
+| `mix test test/enoch/instance/owner_test.exs` | reading the storage mid-transaction does not recover, and losing the owner stops the instance |
+| `mix test test/enoch_test.exs` | `add` then `retract` read back through `Enoch.transact/2`, `{Enoch, opts}` under a supervisor, and the one failure for an unknown instance |
 | `mix test test/enoch/repo_test.exs` | the repo delegation and the refusal of options |
+| `mix test test/enoch/docs_test.exs` | every code and test folder has a `CONTEXT.md` (R35, checked by listing) |
 
 Two of these are the ones worth reading closely, because they encode the hardest guarantees:
-`memory_recovery_test.exs` for what happens when the single writer dies mid-write, and `reader_test.exs` for why
+`memory_recovery_test.exs` for what happens when the single transactor dies mid-write, and `reader_test.exs` for why
 a reader never accepts a torn read.
 
-Per-file counts, observed: application 1, memory 9, recovery 6, contract 9, external adapter 9, reader 5,
-admission 8, repo 3 — 50 in total.
+Per-file counts, observed: application 1, memory 10, recovery 6, contract 10, external adapter 10, reader 5,
+admission 13, boot 6, owner 2, public API 3, repo 3, docs 1 — 70 in total.
 
 ## 6. Quality gates
 
 ```bash
-mix compile --warnings-as-errors        # clean
-mix format --check-formatted            # exit 0
-mix hex.audit                           # No retired or security advisory packages found
+mix compile --warnings-as-errors               # clean
+MIX_ENV=test mix compile --warnings-as-errors  # clean: the test adapter implements the whole contract
+mix format --check-formatted                   # exit 0
+mix hex.audit                                  # No retired or security advisory packages found
 ```
 
 ## 7. The ICM and the judge
@@ -269,10 +304,11 @@ sh docs/_index/estado.sh        # derived state (epics, sprints, backlog)
 /icm status                     # stage, gate verdict and receipt, issues, next steps
 ```
 
-Current derived state: stages `01_grilling` to `04_tickets` closed, `05_implement` in progress with all nine
-issues `ok`, gate `implementacao` verdict `revisar` and receipt `f1297a1cb7877302`. The four open findings are
-advisory (three `so_leitura` and one global `alega_sem_provar`), and the judge is uncalibrated
-(`calibrado: false`), so its verdicts are leads, not proof.
+Derived state observed on 2026-10-15: stages `01_grilling` to `04_tickets` closed, `05_implement` in progress
+with all nine issues `ok`, gate `implementacao` verdict `revisar` and receipt `f1297a1cb7877302`. Re-run the
+commands above for the state of today. At that time the four open findings were advisory (three `so_leitura` and
+one global `alega_sem_provar`), and the judge is uncalibrated (`calibrado: false`), so its verdicts are leads,
+not proof.
 
 One caveat for anyone re-running the gates: the receipt is a hash over the gate's artefacts **and its
 questions**, so re-running after the English migration produces a different receipt id than the recorded ones.

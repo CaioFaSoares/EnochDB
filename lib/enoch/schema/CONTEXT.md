@@ -10,4 +10,4 @@
 
 **Ponto de extensão:** Cada módulo de aplicação ou extensão expõe uma lista de definições em dados; o instalador junta as listas e recusa colisão de nomes (D31).
 
-**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). Esta pasta ainda não tem código; este arquivo é a orientação para a implementação.
+**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). Os módulos desta pasta nascem na s02, exceto `migration.ex`, na s05.

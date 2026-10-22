@@ -254,7 +254,9 @@ export async function conduzir(kernel, args = {}) {
   if (refinar.length) plano.proximo.push(`Refine with the owner: ${refinar.map(i => `#${i.numero} (${i.prontidao})`).join(", ")}.`);
   if (comPapel.length) plano.proximo.push(`Ask for the owner's go and declare the owner of each file before dispatching: ${comPapel.map(i => `#${i.numero}`).join(", ")}.`);
   if (semPapel.length) plano.proximo.push(`Ready without a suggested role (${semPapel.map(i => `#${i.numero}`).join(", ")}): the owner chooses the role or the orchestrator executes; there is no dispatch assembled.`);
+  const loop = cfgC.implementacao.etapas[atual.nome];
   if (atual.nome === "05_implement") plano.proximo.push("Implement the issues of the sprint in a loop with verification: `/icm implement` (the standalone dispatch stays off in this stage).");
+  else if (loop) plano.proximo.push(`Fixes of this stage run in the loop with verification: \`/icm implement\` runs the issues cited in ${loop.issues.split("/").pop()}${loop.secao_issues ? ` under the heading /${loop.secao_issues}/` : ""}.`);
   plano.task = atual.nome === "05_implement" ? null : pacoteTask(plano, atual.nome);
   return plano;
 }

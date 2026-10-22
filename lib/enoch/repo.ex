@@ -49,7 +49,7 @@ defmodule Enoch.Repo do
   defmacro __using__(opts) do
     if opts != [] do
       raise ArgumentError,
-            "use Enoch.Repo não aceita opções nesta sprint, recebi: #{Macro.to_string(opts)}"
+            "use Enoch.Repo accepts no options in this sprint, got: #{Macro.to_string(opts)}"
     end
 
     quote do

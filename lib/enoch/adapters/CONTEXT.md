@@ -10,4 +10,4 @@
 
 **Ponto de extensão:** Adaptadores externos (Postgres, MySQL) são extensões de storage e implementam `Enoch.Storage`; ficam no e02.
 
-**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). Esta pasta ainda não tem código; este arquivo é a orientação para a implementação.
+**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). O `memory.ex` existe desde a s01; o `sqlite.ex` nasce na s04.
