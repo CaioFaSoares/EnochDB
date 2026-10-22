@@ -135,4 +135,78 @@ defmodule Enoch.Adapters.MemoryTest do
       assert [{{100, 10, 7}}] == :ets.tab2list(current)
     end
   end
+
+  describe "a conferência do passo 2 (R04)" do
+    test "um leitor durante a reconstrução nunca aceita uma varredura do presente pela metade" do
+      assert {:ok, %{refs: {_history, current, counter}} = storage} =
+               Memory.open(max_memory: :infinity)
+
+      entidades = 60_000
+      assert {:ok, 1} = Memory.append(storage, for(e <- 1..entidades, do: {e, 10, e, true}))
+
+      # O presente diverge do histórico — uma linha que o log não tem —, e a
+      # reconstrução do passo 2 vai apagá-lo e refazer a tabela inteira.
+      assert true = :ets.insert(current, {{entidades + 1, 10, 0}})
+      assert 2 == :atomics.get(counter, 1)
+
+      db = Memory.db(storage)
+      assert 1 == DB.basis_t(db)
+
+      pai = self()
+      leitor = spawn(fn -> varrer(pai, db) end)
+
+      assert :ok = Memory.verify(storage)
+
+      # A reconstrução é uma transação vazia: o contador foi a `2b+1` antes de tocar
+      # no presente e foi publicado em `2(b+1)`.
+      assert 4 == :atomics.get(counter, 1)
+      assert 2 == DB.basis_t(Memory.db(storage))
+
+      Process.sleep(10)
+      send(leitor, :pare)
+      observacoes = observacoes([])
+
+      # Antes da reconstrução o leitor vê o presente com a linha adulterada; da
+      # reconstrução em diante, o histórico na mesma base, com o estado completo. O
+      # que ele nunca vê é a tabela pela metade.
+      refute observacoes == [], "o leitor não varreu nada"
+      assert Enum.any?(observacoes, & &1.historico), "o leitor não leu o histórico"
+
+      assert Enum.all?(observacoes, &(&1.contagem in [entidades, entidades + 1])),
+             "o leitor aceitou uma varredura pela metade: #{inspect(Enum.map(observacoes, & &1.contagem))}"
+
+      assert Enum.any?(observacoes, &(&1.historico and &1.contagem == entidades))
+
+      # Depois da reconstrução o presente é de novo a projeção dos vivos.
+      assert Memory.scan_aevt(Memory.db(storage), a: 10) |> length() == entidades
+      refute :ets.member(current, {entidades + 1, 10, 0})
+    end
+  end
+
+  # O leitor do passo 2: varre a base 1 sem parar até o `:pare` e manda cada
+  # varredura com a contagem e se ela saiu do histórico.
+  defp varrer(pai, db) do
+    rows = Memory.scan_aevt(db, a: 10)
+
+    send(
+      pai,
+      {:varredura,
+       %{contagem: length(rows), historico: Enum.any?(rows, fn {_e, _a, _v, tx, _} -> tx end)}}
+    )
+
+    receive do
+      :pare -> send(pai, :fim)
+    after
+      0 -> varrer(pai, db)
+    end
+  end
+
+  defp observacoes(acc) do
+    receive do
+      {:varredura, observacao} -> observacoes([observacao | acc])
+      :fim -> Enum.reverse(acc)
+    after
+      5_000 -> flunk("o leitor não terminou")
+    end
+  end
 end

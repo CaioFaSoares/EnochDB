@@ -44,11 +44,17 @@ defmodule Enoch.Adapters.Memory do
   linhas órfãs com `tx = t+1` e o contador em `2t+1`; `recover/1` desfaz isso sem
   nunca voltar o contador (D18, ADR-0003): as órfãs saem do histórico, o estado
   atual é reconstruído do histórico até `t` e o contador é publicado em `2(t+1)`. A
-  transação `t+1` fica vazia e a próxima real é `t+2`.
+  transação `t+1` fica vazia e a próxima real é `t+2`. `recover/1` só roda na
+  entrega do storage ao transactor novo (`Enoch.Instance.Owner.checkout/1`), nunca
+  numa leitura: recuperar com uma transação em curso apagaria linhas que quem
+  chamou já viu gravadas (issue #11, R03).
 
   As duas tabelas nascem no processo que chama `open/1` — o dono da instância, não
-  o transactor (D18, D21) — e a opção `:heir` diz quem as herda se o dono morrer:
-  com o dono fora do transactor, a queda do transactor não leva as tabelas.
+  o transactor (D18, D21) —, e a opção `:heir` diz quem as herda se o dono morrer.
+  A árvore da instância **não** passa um herdeiro: perder o dono derruba a instância
+  inteira, em vez de reabrir tabelas vazias e reutilizar o `t` (R06). A opção
+  continua no adaptador para quem o chama direto; a entrega das tabelas com o
+  contador é item de trabalho da s04/s05.
 
   Referências: `docs/_sprints/s01-nucleo-enoch/03_spec/handovers/spec.md` (R2, R4,
   R5, R6, R8, R16), `docs/adr/0003-*.md` e `docs/arquitetura.md`. Suíte de contrato:
@@ -91,9 +97,11 @@ defmodule Enoch.Adapters.Memory do
   end
 
   # As duas tabelas nascem no processo que chama `open/1` — no caminho da
-  # instância, o dono (`Enoch.Instance.Owner`), que passa o supervisor da instância
-  # em `:heir`. Com o heir, as tabelas são herdadas por ele se o dono morrer; sem
-  # ele, morrem junto (D18, D21, R5).
+  # instância, o dono (`Enoch.Instance.Owner`). O `:heir` é opcional: com ele, as
+  # tabelas passam ao processo herdeiro se o dono morrer; sem ele, morrem junto. A
+  # árvore da instância não passa herdeiro: perder o dono derruba a instância (R06,
+  # ver `Enoch.Instance.Owner`), e a entrega das tabelas com o contador é item de
+  # trabalho da s04/s05 (D18, D21, R5).
   defp new_table(name, nil), do: :ets.new(name, [:ordered_set, :public])
 
   defp new_table(name, heir) when is_pid(heir),
@@ -192,6 +200,7 @@ defmodule Enoch.Adapters.Memory do
   `recover/1` é só a queda no meio da escrita. A conferência do passo 2 da subida
   (D34, R31) — o estado atual contra o log, com o contador par — é `verify/1`.
   """
+  @impl Enoch.Storage
   @spec recover(t()) :: :ok
   def recover(%{refs: {history, _current, counter}} = storage) do
     case :atomics.get(counter, @base) do
@@ -211,21 +220,24 @@ defmodule Enoch.Adapters.Memory do
   @doc """
   Confere o estado atual contra o log e reconstrói o atual se divergirem (R31, D34).
 
-  É a **conferência do passo 2 da subida**: o storage confere que o estado atual e
-  o log concordam e reconstrói o atual se divergirem. É a função que
+  É a **conferência do passo 2 da subida**: o storage confere que o estado atual e o
+  log concordam e reconstrói o atual se divergirem. É a função que
   `Enoch.Instance.Boot` chama no passo 2 (por `function_exported?/3`, como o dono
   faz com `recover/1`).
 
   Com o contador ímpar a transação morreu no meio da escrita e a conferência é a
   recuperação de `recover/1`. Com o contador par, a transação não está em curso: o
   estado atual é comparado com a projeção dos vivos do histórico até a base e, se
-  divergir — uma linha adulterada, um datom apagado —, é reconstruído por
-  `rebuild_current/2`.
+  divergir — uma linha adulterada, um datom apagado —, é reconstruído como uma
+  transação vazia: o contador vai a `2b+1` antes de o estado atual ser tocado e é
+  publicado em `2(b+1)` depois. É o que impede um leitor na base `b` de aceitar uma
+  varredura do presente pela metade durante a reconstrução (R04).
 
   A comparação custa O(histórico), o preço que a ADR-0003 já aceita no reinício:
   a varredura do histórico acontece de qualquer forma, para conferir. Sem
   divergência, o estado atual é deixado como está.
   """
+  @impl Enoch.Storage
   @spec verify(t()) :: :ok
   def verify(%{refs: {history, current, counter}} = storage) do
     case :atomics.get(counter, @base) do
@@ -238,7 +250,7 @@ defmodule Enoch.Adapters.Memory do
         if valid_current?(history, current, basis_t) do
           :ok
         else
-          rebuild_current(storage, basis_t)
+          rebuild_bracketed(storage)
         end
     end
   end
@@ -258,17 +270,17 @@ defmodule Enoch.Adapters.Memory do
     :ets.select_delete(history, [{{{:"$1", :"$2", :"$3", tx}, :_}, [], [true]}])
   end
 
-  @doc """
-  Reconstrói o estado atual a partir do histórico até `basis_t` (R5, D18).
-
-  Apaga o estado atual e o refaz com o último operador por `(e, a, v)` com
-  `tx <= basis_t` — a mesma visibilidade do histórico que o avaliador aplica (D8):
-  as linhas do mesmo `(e, a, v)` são reduzidas à de maior `tx`, e só as afirmadas
-  ficam vivas. Custa O(histórico), o preço que a ADR-0003 aceita na recuperação.
-
-  É a reconstrução que `recover/1` usa; o passo 2 da subida (D34, R31) reconstrói
-  com ela quando o estado atual diverge do histórico.
-  """
+  @doc false
+  # Reconstrói o estado atual a partir do histórico até `basis_t` (R5, D18).
+  #
+  # Apaga o estado atual e o refaz com o último operador por `(e, a, v)` com
+  # `tx <= basis_t` — a mesma visibilidade do histórico que o avaliador aplica (D8):
+  # as linhas do mesmo `(e, a, v)` são reduzidas à de maior `tx`, e só as afirmadas
+  # ficam vivas. Custa O(histórico), o preço que a ADR-0003 aceita na recuperação.
+  #
+  # Não mexe no contador: quem a chama é que põe o contador na ordem da D18. É a
+  # reconstrução que `recover/1` e a conferência de `verify/1` usam, sempre entre
+  # `begin_tx/1` e `publish_tx/2` (R04).
   @spec rebuild_current(t(), DB.basis_t()) :: :ok
   def rebuild_current(%{refs: {history, current, _counter}}, basis_t) do
     live = live_datoms(history, basis_t)
@@ -276,6 +288,18 @@ defmodule Enoch.Adapters.Memory do
     :ets.delete_all_objects(current)
     Enum.each(live, fn {e, a, v} -> :ets.insert(current, {{e, a, v}}) end)
 
+    :ok
+  end
+
+  # A reconstrução do passo 2 entra na ordem de escrita da D18 como qualquer outra
+  # transação — e é uma transação vazia: o contador vai a `2b+1` antes de tocar no
+  # estado atual e é publicado em `2(b+1)` depois. Sem isso, um leitor na base `b`
+  # veria o presente pela metade, porque o contador continuaria valendo `2b` e a
+  # guarda da varredura aceitaria aquelas linhas (R04).
+  defp rebuild_bracketed(%{refs: {_history, _current, counter}} = storage) do
+    tx = begin_tx(counter)
+    rebuild_current(storage, tx - 1)
+    publish_tx(counter, tx)
     :ok
   end
 
@@ -340,7 +364,8 @@ defmodule Enoch.Adapters.Memory do
 
       true ->
         raise ArgumentError,
-              "scan_avet/2 exige a opção :v ou as opções :min_v e :max_v; recebeu #{inspect(opts)}"
+              "scan_avet/2 requires the :v option or the :min_v and :max_v options; " <>
+                "got #{inspect(opts)}"
     end
   end
 
@@ -403,8 +428,8 @@ defmodule Enoch.Adapters.Memory do
   # tupla de um elemento, e o corpo do match spec faz o mesmo: é assim que o ETS
   # constrói uma tupla literal.
   defp present_scan(table, filter) do
-    {key, guards} = index_spec(filter)
-    :ets.select(table, [{{key}, guards, [{present_datom(key)}]}])
+    {pattern, body_key, guards} = index_spec(filter)
+    :ets.select(table, [{{pattern}, guards, [{present_datom(body_key)}]}])
   end
 
   defp present_datom({e, a, v}), do: {e, a, v, nil, nil}
@@ -414,27 +439,40 @@ defmodule Enoch.Adapters.Memory do
   # `(e, a, v)` saem adjacentes e ordenadas por `tx`, porque a chave ordena por
   # `{e, a, v, tx}`.
   defp history_scan(table, filter, basis_t) do
-    {key, guards} = index_spec(filter)
-    {e, a, v} = key
-    pattern = {{e, a, v, :"$90"}, :"$91"}
-    body = {{e, a, v, :"$90", :"$91"}}
+    {pattern, body_key, guards} = index_spec(filter)
+    {e, a, v} = pattern
+    {body_e, body_a, body_v} = body_key
 
-    :ets.select(table, [{pattern, [{:"=<", :"$90", basis_t} | guards], [body]}])
+    key = {{e, a, v, :"$90"}, :"$91"}
+    body = {{body_e, body_a, body_v, :"$90", :"$91"}}
+
+    :ets.select(table, [{key, [{:"=<", :"$90", basis_t} | guards], [body]}])
   end
 
-  # O filtro de cada varredura vira o padrão da chave e as guardas do match spec.
-  # Onde não há pushdown, a posição é uma variável.
-  defp index_spec({:eavt, e}), do: {{e, :"$1", :"$2"}, []}
-  defp index_spec({:eavt, e, a}), do: {{e, a, :"$1"}, []}
-  defp index_spec({:aevt, a}), do: {{:"$1", a, :"$2"}, []}
-  defp index_spec({:aevt, a, e}), do: {{e, a, :"$1"}, []}
-  defp index_spec({:avet, a, v}), do: {{:"$1", a, v}, []}
+  # O filtro de cada varredura vira o padrão da chave, o mesmo filtro para o corpo
+  # e as guardas do match spec. Onde não há pushdown, a posição é uma variável.
+  #
+  # Um `v` de `term()` não pode entrar cru no corpo nem na guarda: o ETS lê uma
+  # tupla cujo primeiro elemento é um átomo como chamada de função do match spec, e
+  # um valor tupla — `{:a, :b}` — derrubava a varredura com "not a valid match
+  # specification". No corpo e nas guardas o literal vai embrulhado em
+  # `{:const, v}`; no padrão ele entra como está, que é onde o ETS o lê como
+  # literal (R12).
+  defp index_spec({:eavt, e}), do: {{e, :"$1", :"$2"}, {e, :"$1", :"$2"}, []}
+  defp index_spec({:eavt, e, a}), do: {{e, a, :"$1"}, {e, a, :"$1"}, []}
+  defp index_spec({:aevt, a}), do: {{:"$1", a, :"$2"}, {:"$1", a, :"$2"}, []}
+  defp index_spec({:aevt, a, e}), do: {{e, a, :"$1"}, {e, a, :"$1"}, []}
+  defp index_spec({:avet, a, v}), do: {{:"$1", a, v}, {:"$1", a, const(v)}, []}
 
   defp index_spec({:avet_range, a, min_v, max_v}),
-    do: {{:"$1", a, :"$2"}, [{:>=, :"$2", min_v}, {:"=<", :"$2", max_v}]}
+    do:
+      {{:"$1", a, :"$2"}, {:"$1", a, :"$2"},
+       [{:>=, :"$2", const(min_v)}, {:"=<", :"$2", const(max_v)}]}
 
-  defp index_spec({:vaet, v}), do: {{:"$1", :"$2", v}, []}
-  defp index_spec({:vaet, v, a}), do: {{:"$1", a, v}, []}
+  defp index_spec({:vaet, v}), do: {{:"$1", :"$2", v}, {:"$1", :"$2", const(v)}, []}
+  defp index_spec({:vaet, v, a}), do: {{:"$1", a, v}, {:"$1", a, const(v)}, []}
+
+  defp const(value), do: {:const, value}
 
   defp required!(opts, key, callback) do
     case Keyword.fetch(opts, key) do
@@ -443,7 +481,7 @@ defmodule Enoch.Adapters.Memory do
 
       :error ->
         raise ArgumentError,
-              "#{callback}/2 exige a opção #{inspect(key)}; recebeu #{inspect(opts)}"
+              "#{callback}/2 requires the #{inspect(key)} option; got #{inspect(opts)}"
     end
   end
 

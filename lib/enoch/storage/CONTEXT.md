@@ -6,8 +6,8 @@
 
 **Sprint:** s01: suíte inicial e contador de linhas lidas. s04: a suíte roda nos dois adaptadores.
 
-**Fronteira:** A suíte testa o contrato, não um adaptador específico. Cobre visibilidade, `as_of`, unicidade, ordem e decimal, tempids, lookup refs, `db` antigo e `queda no meio da escrita`.
+**Fronteira:** A suíte testa o contrato, não um adaptador específico. Cobre as quatro varreduras com o pushdown de cada índice, o modelo acumulativo, o banco de base antiga, o valor tupla e a ausência de consulta Datalog no contrato; leitura concorrente e recuperação ficam nas suítes do adaptador e do leitor. `as_of`, unicidade, tipos e decimal entram com as fatias que os implementam.
 
 **Ponto de extensão:** Adaptadores externos executam esta mesma suíte (D24).
 
-**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). Esta pasta ainda não tem código; este arquivo é a orientação para a implementação.
+**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). O `contract_case.ex` existe desde a s01; a suíte ganha casos nas fatias seguintes.

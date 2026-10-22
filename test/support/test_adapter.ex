@@ -17,4 +17,5 @@ defmodule Enoch.TestAdapter do
   defdelegate scan_aevt(db, opts), to: Enoch.Adapters.Memory
   defdelegate scan_avet(db, opts), to: Enoch.Adapters.Memory
   defdelegate scan_vaet(db, opts), to: Enoch.Adapters.Memory
+  defdelegate rows_read(storage), to: Enoch.Adapters.Memory
 end

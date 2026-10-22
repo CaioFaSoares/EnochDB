@@ -10,4 +10,4 @@
 
 **Ponto de extensão:** Não.
 
-**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../docs/arquitetura.md`](../docs/arquitetura.md). Vocabulário em [`../CONTEXT.md`](../CONTEXT.md). Esta pasta ainda não tem código; este arquivo é a orientação para a implementação.
+**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../docs/arquitetura.md`](../docs/arquitetura.md). Vocabulário em [`../CONTEXT.md`](../CONTEXT.md). O `config.exs` existe desde a s01; o `runtime.exs` e a configuração do exemplo entram com a s05.

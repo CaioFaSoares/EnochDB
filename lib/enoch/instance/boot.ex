@@ -2,18 +2,20 @@ defmodule Enoch.Instance.Boot do
   @moduledoc """
   A sequência de subida em sete passos (D34, R31).
 
-  Cada instância sobe a própria árvore de supervisão — dono das tabelas, admissão
-  e transactor (ver `Enoch.Instance.Supervisor`) — e `Enoch.start_link/1` chama a
-  subida logo depois, com o processo que chamou. A subida é `run/2`:
+  Cada instância sobe a própria árvore de supervisão — dono das tabelas e admissão
+  (ver `Enoch.Instance.Supervisor`) — e `Enoch.start_link/1` chama a subida logo
+  depois, com o processo que chamou. A árvore sobe com a admissão fechada; a subida
+  é `run/2`:
 
   1. confere a versão do layout do storage aberto e recusa um layout mais novo que
      o conhecido (`Enoch.Storage.layout_version/0`);
   2. confere que o estado atual e o log concordam e reconstrói o atual se
      divergirem — é a conferência do adaptador (`Enoch.Adapters.Memory.verify/1`
-     no `Memory`), chamada no caminho interno da subida;
-  3. garante a admissão fechada a chamadores externos: o transactor sobe com a
-     árvore e o único caminho que escreve durante os passos seguintes é o interno
-     (`Enoch.Transactor.transact/3` com `:internal`);
+     no `Memory`); um erro do adaptador interrompe a subida;
+  3. inicia o transactor, com a admissão fechada: `Supervisor.start_child/2` com a
+     especificação de `Enoch.Instance.Supervisor.transactor_spec/2`. É aqui que o
+     transactor novo recupera uma queda (ver `Enoch.Instance.Owner.checkout/1`), com
+     ninguém escrevendo — nenhuma transação existe antes dele;
   4. registra as funções de transação e as regras das listas de módulos das
      opções, recusando dois módulos que registrem o mesmo nome;
   5. instalar o schema fica na s02;
@@ -24,6 +26,10 @@ defmodule Enoch.Instance.Boot do
   Uma falha em qualquer passo interrompe a subida com erro explícito e a admissão
   continua fechada: `Enoch.start_link/1` derruba a árvore e devolve o erro. Não há
   gancho de subida para a aplicação (D34).
+
+  Entre a árvore de pé e o passo 7, a admissão está fechada: uma escrita externa
+  (`Enoch.transact/2`) recebe `{:error, :admission_closed}` durante a subida, e uma
+  instância cuja subida falha nunca aceitou escrita de fora (issue #11, R02).
 
   ## O registro genérico do passo 4
 
@@ -59,7 +65,7 @@ defmodule Enoch.Instance.Boot do
   alias Enoch.DB
   alias Enoch.Instance.Admission
   alias Enoch.Instance.Owner
-  alias Enoch.Instance.Supervisor
+  alias Enoch.Instance.Supervisor, as: Instance
   alias Enoch.Telemetry
 
   @typedoc """
@@ -80,21 +86,36 @@ defmodule Enoch.Instance.Boot do
   passo que falhar — a admissão fica fechada em qualquer falha.
 
   É chamada por `Enoch.start_link/1`; quem sobe a árvore por
-  `Enoch.Instance.Supervisor.start_link/1` a chama quando quiser subir a instância.
+  `Enoch.Instance.Supervisor.start_link/1` a chama em seguida. O passo 3 inicia o
+  transactor, então chamá-la numa árvore que já o tem aceita o transactor existente.
   """
   @spec run(term(), keyword()) :: {:ok, registry()} | {:error, term()}
   def run(instance, opts) do
-    owner = Supervisor.owner(instance)
+    owner = Instance.owner(instance)
     adapter = Keyword.fetch!(opts, :adapter)
     storage = Owner.storage(owner)
 
-    with :ok <- Admission.close(instance),
-         :ok <- check_layout(adapter, storage),
+    with :ok <- check_layout(adapter, storage),
          :ok <- verify_state(adapter, storage),
+         :ok <- start_transactor(instance, opts),
          {:ok, registry} <- register(opts),
          :ok <- open(instance, opts),
          :ok <- emit(instance, owner) do
       {:ok, registry}
+    end
+  end
+
+  # Passo 3: o transactor entra depois dos passos 1 e 2, com a admissão fechada (o
+  # `init` da admissão já a deixou fechada). A árvore existente pode já tê-lo — uma
+  # segunda chamada de `run/2` —, e isso é o estado que o passo entrega.
+  defp start_transactor(instance, opts) do
+    case Supervisor.start_child(
+           Instance.name(instance),
+           Instance.transactor_spec(instance, opts)
+         ) do
+      {:ok, _pid} -> :ok
+      {:error, {:already_started, _pid}} -> :ok
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -125,13 +146,13 @@ defmodule Enoch.Instance.Boot do
   # Passo 2: a conferência do estado atual contra o log é do adaptador — só ele
   # conhece as tabelas e o contador — e é ele que reconstrói o atual se divergir
   # (`Enoch.Adapters.Memory.verify/1` no `Memory`). Um adaptador sem a conferência
-  # não tem o que reconstruir.
+  # não tem o que reconstruir; um que a oferece e devolve erro impede a subida (R31).
   defp verify_state(adapter, storage) do
     if function_exported?(adapter, :verify, 1) do
       adapter.verify(storage)
+    else
+      :ok
     end
-
-    :ok
   end
 
   # Passo 4: as listas de módulos viram o registro, com colisão de nome recusada.

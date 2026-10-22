@@ -17,7 +17,7 @@ defmodule Enoch.Telemetry do
   transações rejeitadas por cota, linhas lidas por varredura, tamanho da fila e
   transações por segundo — entram na s05, junto com a cota e os limites da D20 e
   da D21. O contador de linhas lidas já existe desde a s01 no contrato
-  (`Enoch.Storage.rows_read/1`); o evento dele é da s05.
+  (`c:Enoch.Storage.rows_read/1`, o callback); o evento dele é da s05.
 
   Referências: `docs/_sprints/s01-nucleo-enoch/03_spec/handovers/spec.md` (R17),
   `docs/adr/0004-*.md` (telemetria da fila) e `docs/adr/0008-*.md` (passo 7).

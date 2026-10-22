@@ -13,10 +13,12 @@ defmodule Enoch.Adapters.MemoryRecoveryTest do
   `recover/1` direto, onde o desfecho é determinístico.
 
   A janela entre a queda e o fim da recuperação é alargada com `:sys.suspend` no
-  dono: a recuperação roda na entrega do storage ao transactor novo (ver
-  `Enoch.Instance.Owner`), e o dono suspenso segura essa entrega, deixando o estado
-  intermediário — contador em `2t+1` e órfãs no histórico — observável. A janela
-  existe em produção; o teste só não depende de ganhar a corrida contra ela.
+  dono: a recuperação roda na entrega do storage ao transactor novo
+  (`Enoch.Instance.Owner.checkout/1`, ver `Enoch.Instance.Owner`), e o dono suspenso
+  segura essa entrega, deixando o estado intermediário — contador em `2t+1` e órfãs
+  no histórico — observável. A janela existe em produção; o teste só não depende de
+  ganhar a corrida contra ela. Uma leitura de `Owner.storage/1`, ao contrário, não
+  recupera (issue #11, R03): é isso que `test/enoch/instance/owner_test.exs` prova.
 
   Referências: `docs/_sprints/s01-nucleo-enoch/03_spec/handovers/spec.md` (R5),
   `docs/adr/0003-*.md` e a issue #7.
@@ -46,7 +48,7 @@ defmodule Enoch.Adapters.MemoryRecoveryTest do
       cenario = Enum.find_value(1..3, fn _tentativa -> montar_queda() end)
       assert cenario, "a escrita não caiu no meio em três tentativas"
 
-      %{nome: nome, sup: sup, owner: owner, storage: storage, t: t} = cenario
+      %{nome: nome, owner: owner, storage: storage, t: t} = cenario
       %{refs: {history, current, counter}} = storage
 
       # A queda: o contador preso em `2t+1`, as órfãs da `t+1` no histórico e o
@@ -127,14 +129,15 @@ defmodule Enoch.Adapters.MemoryRecoveryTest do
       assert 0 == conta_tx(history, t + 1)
       assert 0 == Admission.counter(nome)
 
-      # As tabelas sobreviveram à queda do transactor: as mesmas, do mesmo dono, com
-      # o heir no supervisor da instância, e o transactor novo está no ar.
+      # As tabelas sobreviveram à queda do transactor: as mesmas, do mesmo dono, e o
+      # transactor novo está no ar. A árvore não tem herdeiro: a queda do dono é da
+      # `Enoch.Instance.Owner` (R06), e não entrega as tabelas a ninguém.
       assert :ets.info(history) != :undefined
       assert :ets.info(current) != :undefined
       assert :ets.info(history, :owner) == owner
       assert :ets.info(current, :owner) == owner
-      assert :ets.info(history, :heir) == sup
-      assert :ets.info(current, :heir) == sup
+      assert :ets.info(history, :heir) == :none
+      assert :ets.info(current, :heir) == :none
       assert Process.alive?(GenServer.whereis(Instance.transactor(nome)))
     end
   end
@@ -233,16 +236,16 @@ defmodule Enoch.Adapters.MemoryRecoveryTest do
     end
   end
 
-  describe "as tabelas sobrevivem à queda (R5, D18, D21)" do
-    test "as tabelas do dono nascem com o heir no supervisor da instância" do
+  describe "as tabelas e a queda do transactor (R5, D18, D21)" do
+    test "as tabelas nascem do dono e sem herdeiro" do
       nome = {__MODULE__, System.unique_integer([:positive])}
       assert {:ok, sup} = Enoch.start_link(name: nome, adapter: Memory, storage_opts: @aberto)
       on_exit(fn -> parar(sup) end)
 
       %{refs: {history, current, _counter}} = Owner.storage(Instance.owner(nome))
 
-      assert :ets.info(history, :heir) == sup
-      assert :ets.info(current, :heir) == sup
+      assert :ets.info(history, :heir) == :none
+      assert :ets.info(current, :heir) == :none
       assert :ets.info(history, :owner) == GenServer.whereis(Instance.owner(nome))
     end
 

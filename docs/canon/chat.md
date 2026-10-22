@@ -253,14 +253,14 @@ O `use Fato.Repo` gera `transact/1`, `q/2`, `pull/3`, `db/0`, `as_of/1` e `liste
 
 ```
 MyApp.Db (Supervisor, :rest_for_one)
-├── Fato.Storage.Writer      # a única conexão de escrita
+├── Fato.Storage.WriteConnection  # a única conexão de escrita
 ├── Fato.Storage.ReaderPool  # conexões só leitura
 ├── Fato.Schema.Registry     # carrega o schema e publica em persistent_term
 ├── Fato.Transactor          # GenServer serializando transações
 └── Fato.Events              # Registry/PubSub com os tx reports
 ```
 
-A estratégia `:rest_for_one` importa aqui. Se o writer cair, o transactor reinicia junto e relê o `basis_t` do banco, então nunca fica com estado defasado.
+A estratégia `:rest_for_one` importa aqui. Se a conexão de escrita cair, o transactor reinicia junto e relê o `basis_t` do banco, então nunca fica com estado defasado.
 
 A organização de pastas espelha as regiões do diagrama:
 

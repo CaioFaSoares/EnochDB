@@ -10,4 +10,4 @@
 
 **Ponto de extensão:** `function.ex` é o behaviour que aplicações e extensões implementam; o registro é `{nome, módulo}` com nome espaçado, como `ledger/post` (D35).
 
-**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). Esta pasta ainda não tem código; este arquivo é a orientação para a implementação.
+**Origem:** issue [#1](https://github.com/CaioFaSoares/EnochDB/issues/1) e o mapa em [`../../../docs/arquitetura.md`](../../../docs/arquitetura.md). Vocabulário em [`../../../CONTEXT.md`](../../../CONTEXT.md). O `function.ex` existe desde a s01; os demais módulos nascem na s02.

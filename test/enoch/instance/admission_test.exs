@@ -7,15 +7,21 @@ defmodule Enoch.Instance.AdmissionTest do
   admissão nasce com o contador e a escrita passa pelo `Enoch.Transactor` — é o que a
   issue pede:
 
-  1. acima do limite o chamador é rejeitado antes de a mensagem entrar na caixa e o
-     incremento do rejeitado é desfeito;
+  1. acima do limite o chamador é rejeitado antes de a mensagem entrar na caixa, sem
+     consumir unidade do contador;
   2. com a admissão fechada a escrita externa é rejeitada e a interna da subida passa;
   3. a queda do transactor zera o contador de admissão no `init` do novo;
   4. um chamador morto entre incrementar e enviar deixa o contador igual à caixa real
-     depois da reconciliação por `message_queue_len`.
+     depois da reconciliação por `message_queue_len` mais a transação em curso;
+  5. com a caixa cheia e o transactor suspenso, a rajada de chamadores concorrentes é
+     rejeitada e a caixa não cresce; com uma transação em voo e a caixa vazia, a vaga
+     em voo conta e a escrita seguinte é rejeitada (issue #11, R01). O limite é o
+     aproximado da D27 — a janela de excesso, os admitidos que ainda não enviaram
+     quando outro reconcilia, está documentada em `Enoch.Instance.Admission`.
 
   A medida da caixa é `Process.info(pid, :message_queue_len)` e a do contador é
-  `Enoch.Instance.Admission.counter/1`. O transactor é suspenso com `:sys.suspend`
+  `Enoch.Instance.Admission.counter/1`; a da transação em curso é
+  `Enoch.Instance.Admission.in_flight/1`. O transactor é suspenso com `:sys.suspend`
   quando o teste precisa da mensagem parada na caixa e retomado na mesma sequência
   (o `call` tem o tempo limite de quinze segundos de `docs/canon/chat.md`). O arquivo é
   síncrono porque mexe na caixa e na vida do transactor de verdade.
@@ -66,8 +72,8 @@ defmodule Enoch.Instance.AdmissionTest do
       # de a mensagem entrar na caixa.
       assert {:error, :admission_full} = Enoch.transact(nome, [[:add, 200, @attr, 8]])
 
-      # A caixa continua com a única mensagem admitida e o contador volta ao valor de
-      # antes da rejeição — o incremento do rejeitado foi desfeito.
+      # A caixa continua com a única mensagem admitida e o contador fica no valor de
+      # antes da rejeição — o rejeitado não consumiu unidade.
       assert caixa(transactor) == 1
       assert Admission.counter(nome) == 1
 
@@ -192,7 +198,7 @@ defmodule Enoch.Instance.AdmissionTest do
       assert caixa(transactor) == 0
 
       # Com o limite 1, a unidade presa barra a admissão direta (sem reconciliar) — e o
-      # rejeitado desfaz o incremento dele, sem mexer na unidade presa.
+      # rejeitado não consome unidade, então a unidade presa continua no contador.
       assert {:error, :admission_full} = Admission.admit(ref)
       assert Admission.counter(nome) == 1
 
@@ -227,6 +233,121 @@ defmodule Enoch.Instance.AdmissionTest do
       assert Task.await(em_voo) == {:ok, 1}
       assert Admission.counter(nome) == 0
       assert caixa(transactor) == 0
+    end
+  end
+
+  describe "concorrência (R01)" do
+    test "com a caixa cheia, a rajada é rejeitada e a caixa não cresce" do
+      nome = subir(limit: 4)
+      transactor = suspender(nome)
+
+      # Quatro chamadores admitidos enchem a caixa do transactor suspenso. Enquanto
+      # ele está suspenso, nenhuma mensagem sai da caixa e nenhuma transação é
+      # liberada: o tamanho da caixa no fim da rajada é o máximo que ela alcançou.
+      # A espera pela caixa cheia garante que os quatro já enviaram — não há chamador
+      # admitido e ainda não enviado, que é a janela de excesso documentada em
+      # `Enoch.Instance.Admission`, e por isso a reconciliação da rajada é exata.
+      primeiros =
+        for e <- 1..4 do
+          Task.async(fn -> Enoch.transact(nome, [[:add, e, @attr, e]]) end)
+        end
+
+      assert aguardar(fn -> caixa(transactor) == 4 end)
+      assert Admission.counter(nome) == 4
+
+      # A rajada disputa as quatro vagas ocupadas. Nenhum chamador é admitido, a
+      # caixa continua com quatro mensagens e o contador não passa do limite.
+      rajada =
+        for e <- 101..120 do
+          Task.async(fn -> Enoch.transact(nome, [[:add, e, @attr, e]]) end)
+        end
+
+      rejeitados = Enum.map(rajada, &Task.await(&1, 5_000))
+
+      assert Enum.all?(rejeitados, &(&1 == {:error, :admission_full})),
+             "a rajada foi admitida acima do limite: #{inspect(Enum.reject(rejeitados, &(&1 == {:error, :admission_full})))}"
+
+      assert caixa(transactor) == 4
+      assert Admission.counter(nome) == 4
+
+      assert :ok = :sys.resume(transactor)
+
+      assert Enum.sort(Enum.map(primeiros, &Task.await(&1, 5_000))) == [
+               {:ok, 1},
+               {:ok, 2},
+               {:ok, 3},
+               {:ok, 4}
+             ]
+
+      assert Admission.counter(nome) == 0
+      assert caixa(transactor) == 0
+    end
+
+    test "com uma transação em curso, a vaga em voo conta e a escrita seguinte é rejeitada" do
+      nome = subir(limit: 1)
+      transactor = transactor(nome)
+
+      # A transação grande segura o transactor dentro do `handle_call`, com a caixa
+      # vazia: só o slot da transação em curso sabe que ela existe.
+      grande = for k <- 1..100_000, do: [:add, k, @attr, k]
+      em_curso = Task.async(fn -> Enoch.transact(nome, grande) end)
+
+      assert aguardar(fn -> Admission.in_flight(nome) == 1 and caixa(transactor) == 0 end)
+
+      assert {:error, :admission_full} = Enoch.transact(nome, [[:add, 1, @attr, 7]])
+      assert Admission.counter(nome) == 1
+      assert Admission.in_flight(nome) == 1
+
+      assert {:ok, 1} = Task.await(em_curso, 30_000)
+      assert Admission.counter(nome) == 0
+      assert Admission.in_flight(nome) == 0
+      assert DB.basis_t(Enoch.db(nome)) == 1
+    end
+
+    test "a rejected caller does not erase a caller admitted that has not sent yet" do
+      nome = subir(limit: 2)
+      transactor = suspender(nome)
+      ref = Admission.ref(nome)
+
+      enviado = Task.async(fn -> Enoch.transact(nome, [[:add, 1, @attr, 1]]) end)
+      assert aguardar(fn -> caixa(transactor) == 1 end)
+
+      # A second caller is admitted and has not sent yet: only the counter knows it.
+      assert :ok = Admission.admit(ref)
+      assert Admission.counter(nome) == 2
+
+      assert {:error, :admission_full} = Enoch.transact(nome, [[:add, 2, @attr, 2]])
+      assert Admission.counter(nome) == 2
+      assert caixa(transactor) == 1
+
+      Admission.release(ref)
+      assert :ok = :sys.resume(transactor)
+      assert {:ok, 1} = Task.await(enviado)
+    end
+
+    test "a unit leaked by a dead caller is repaired by the next write when the transactor is idle" do
+      nome = subir(limit: 1)
+      transactor = transactor(nome)
+
+      matar_entre_incrementar_e_enviar(Admission.ref(nome))
+      assert Admission.counter(nome) == 1
+      assert caixa(transactor) == 0
+
+      assert {:ok, 1} = Enoch.transact(nome, [[:add, 1, @attr, 7]])
+      assert Admission.counter(nome) == 0
+    end
+  end
+
+  describe "instância desconhecida (R16)" do
+    test "sem contador de admissão, a mensagem de erro é em inglês e nomeia a instância" do
+      nome = {__MODULE__, :sem_arvore}
+
+      erro = assert_raise ArgumentError, fn -> Admission.ref(nome) end
+      mensagem = Exception.message(erro)
+
+      assert mensagem =~ "has no admission counter"
+      assert mensagem =~ "Enoch.Instance.Supervisor"
+      assert mensagem =~ inspect(nome)
     end
   end
 
