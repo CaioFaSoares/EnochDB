@@ -49,7 +49,7 @@ Conversation to explore `$@[2]` and, if it is worth it, keep it in the backlog. 
 
 ## implement
 
-Implementation loop over **all the issues of the sprint**, one at a time, in dependency order, with verification and Jev on every iteration. Only valid in `05_implement`. Mechanism and guarantees: `docs/agents/jev.md`, section Implement.
+Implementation loop over **the issues of the current stage**, one at a time, in dependency order, with verification and Jev on every iteration. Valid in `05_implement` (the sprint's issues, from `04_tickets/handovers/tickets.md`) and in `06_review` (the fix issues cited under `## Fix issues` in `06_review/handovers/revisao.md`). Below, `<etapa>` is that stage. Mechanism and guarantees: `docs/agents/jev.md`, section Implement.
 
 1. **Plan and go.** Discover the sprint (`$2` or the most recent one) and run:
 
@@ -61,7 +61,7 @@ Implementation loop over **all the issues of the sprint**, one at a time, in dep
    console.log(I.painel(p)); console.log(JSON.stringify(p.proposta));
    ```
 
-   `BLOCKED` here stops the mode (wrong stage, no `#N` in `tickets.md`, issue without criteria, cycle). If `p.go` already exists, resume from step 3. Otherwise, show the owner, via `ask`, the order, the role and the **path owner of each issue** (start from `p.proposta`; he edits it), and the iteration limit (`p.max_iteracoes`). Without a declared path owner, there is no go. With the go: `I.registrarGo({ sprint: SPRINT, itens: [{ numero, papel, dono: ["lib/...", "test/..."] }] })` and set `status: em-curso` in the sheet `docs/_sprints/<sprint>/05_implement/CONTEXT.md` if it is still `vazio`.
+   `BLOCKED` here stops the mode (wrong stage, no `#N` in the stage's issue list, issue without criteria, cycle). If `p.go` already exists, resume from step 3. Otherwise, show the owner, via `ask`, the order, the role and the **path owner of each issue** (start from `p.proposta`; he edits it), and the iteration limit (`p.max_iteracoes`). Without a declared path owner, there is no go. With the go: `I.registrarGo({ sprint: SPRINT, itens: [{ numero, papel, dono: ["lib/...", "test/..."] }] })` and set `status: em-curso` in the sheet `docs/_sprints/<sprint>/<etapa>/CONTEXT.md` if it is still `vazio`.
 
 2. **Verifier.** The loop runs `conducao.implementacao.verificacao` from `docs/agents/jev-gates.json` (today `mix test`, requires `mix.exs`). A missing tool is `bloqueada`, never a fallback.
 
@@ -74,11 +74,11 @@ Implementation loop over **all the issues of the sprint**, one at a time, in dep
 
    - `iteracao` with `veredito: "ok"`: next. `"reiterar"`: the feedback has already been recorded; call it again. `"bloqueada"`: the reason is in `R.motivos`; the loop moves on to the independent issues by itself.
    - Between issues, tell the owner one line: `#N it/max veredito`, files and `testes`. Do not interrupt to ask, unless `R.acao` is `bloqueado` or `sem_go`.
-   - `R.impacto` lists the nodes that depend on the files the iteration changed (reverse graph traversal, outside those files). Read it before calling the issue `ok`: a node outside the declared owner is a hint of a side effect for the owner, not a block nor a proof; the record goes to `jev.jsonl` and to `implementacao.md`.
+   - `R.impacto` lists the nodes that depend on the files the iteration changed (reverse graph traversal, outside those files). Read it before calling the issue `ok`: a node outside the declared owner is a hint of a side effect for the owner, not a block nor a proof; the record goes to `<etapa>/handovers/jev.jsonl` and to the loop handover.
    - Stop and bring it to the owner if the same reason blocks two issues in a row, or if `wrote outside the declared owner`, `touched a protected path` or `changed git's HEAD` appears: they are contract violations, not test failures.
    - `R.acao === "fim"`: go to step 4.
 
-4. **Closure.** `await I.fechar({ judge, judgeBatch }, { sprint: SPRINT })` writes `05_implement/handovers/implementacao.md` (derived from `jev.jsonl`) and runs the `implementacao` gate. Show the owner: issues `ok`, issues `bloqueada` or pending with the reason, the verdict and the gate receipt, and what was **not** done: no commit, no issue closed, stage still `em-curso`. The human gate of `05_implement` and the commit are the owner's. Do not relay the text of the criteria the subagent declared as if it were verified: the measured verification is the `verification` line of the file.
+4. **Closure.** `await I.fechar({ judge, judgeBatch }, { sprint: SPRINT })` writes the loop handover derived from `jev.jsonl` (`05_implement/handovers/implementacao.md` with the `implementacao` gate, or `06_review/handovers/correcoes.md` with the `correcoes` gate) and runs that gate. Show the owner: issues `ok`, issues `bloqueada` or pending with the reason, the verdict and the gate receipt, and what was **not** done: no commit, no issue closed, stage still `em-curso`. In `06_review`, record in `revisao.md`, under each finding, the fix issue and its receipt, then run `/icm status` so the `revisao` gate reads the final text. The human gate of the stage and the commit are the owner's. Do not relay the text of the criteria the subagent declared as if it were verified: the measured verification is the `verification` line of the file.
 
 ## decidir
 

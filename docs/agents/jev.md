@@ -29,6 +29,7 @@ The TypeSafe key lives in the omp credential (`typesafe`), never in a repository
 | `tickets` | before publishing | each spec item is delivered by some ticket |
 | `implementacao` | before requesting the `05_implement` gate | each criterion has recorded execution; claim without command |
 | `revisao` | before the `06_review` gate | finding without evidence or without destination; verification without command |
+| `correcoes` | when the loop closes in `06_review` | same questions as `implementacao` (`perguntas_de`), over `06_review/handovers/correcoes.md` |
 | `handoff` | before the `07_handoff` gate | zero-context test; claimed execution without proof |
 | `opcoes` | when there is more than one viable path | each option × each criterion, ranking and tie in code |
 
@@ -90,7 +91,7 @@ One command runs the short cycle: **panel → reading → owner's go → dispatc
 | --- | --- | --- |
 | `continue` | advances **one step** of the current stage (produce handover, resolve gate findings) and stops at the human gate | owner |
 | `duck` | talks with the rubberduck, keeps what is worth it in `docs/_backlog/` | owner positions it (`git mv` to `01_grilling/inputs/` of a not-started sprint) |
-| `implement` | loop over all the sprint's issues in `05_implement` | owner checks and closes the stage |
+| `implement` | loop over the issues of the current stage: the sprint's issues in `05_implement`, the fix issues in `06_review` | owner checks and closes the stage |
 
 ### Duck
 
@@ -102,13 +103,13 @@ One command runs the short cycle: **panel → reading → owner's go → dispatc
 
 Flow: `plano` (read-only) → **owner's go** (`registrarGo`: role and owner of paths per issue) → `passo` repeated → `fechar`.
 
-- **Which issues and in what order:** the `#N` cited in `04_tickets/handovers/tickets.md` (or explicit `issues`); topological order by the `#N` of the body's `Dependências` section; criteria are the `- [ ]` of the `Critérios de aceite` section. Everything extracted in code. An issue with no extractable criterion, a cycle or an open dependency outside the sprint becomes a block, not a guess.
-- **One iteration** (`passo`): measures the git state (file hash) → dispatches the role (default `42-implementation-backend`, structured report) → measures again → runs the verification (`mix test`) → asks Jev, per criterion, whether there is observed execution that covers it → writes to `05_implement/handovers/jev.jsonl`.
+- **Where it runs and which issues:** the stages in `conducao.implementacao.etapas`. In `05_implement`, the `#N` cited in `04_tickets/handovers/tickets.md`; in `06_review`, the `#N` cited under the `## Fix issues` heading of `06_review/handovers/revisao.md` (the review fixes material delivered earlier without reopening `05_implement`). Explicit `issues` overrides both. Topological order by the `#N` of the body's `Dependências`/`Dependencies` section; criteria are the `- [ ]` of the `Critérios de aceite`/`Acceptance criteria` section. Everything extracted in code. An issue with no extractable criterion, a cycle or an open dependency outside the list becomes a block, not a guess.
+- **One iteration** (`passo`): measures the git state (file hash) → dispatches the role (default `42-implementation-backend`, structured report) → measures again → runs the verification (`mix test`) → asks Jev, per criterion, whether there is observed execution that covers it → writes to the current stage's `handovers/jev.jsonl`. The go, the iterations and the closure live in that stage; each stage has its own go.
 - **Verdict (code):** `ok` only with verification at 0 and no criterion outside the clean range. Failed test or criterion without proof → `reiterar`, with the feedback assembled in code (criterion, reason, end of the test output) in the next prompt. Once the iterations are exhausted (`max_iteracoes`) → `bloqueada`.
 - **Blocked, no negotiation:** writing outside the declared owner, to a `protegidos` path (includes `jev-gates.json`, `docs/_index/`, ADRs, canon), a subagent commit, `bloqueios` declared by it, a missing verifier, a failing subagent or judge. The issue and those depending on it stop; the independent ones continue.
 - **What the loop never does:** commit, close an issue, change a stage's `status:`, edit what is protected, switch tools. Subagents run in series, one owner per file.
-- **Resumption:** progress is derived from `jev.jsonl`; `/icm implement` in a new session continues from the next issue.
-- **Closing:** `fechar` generates `implementacao.md` from the records (refuses to overwrite a hand-written file) and runs the `implementacao` gate over the `ok` issues. The measured verification is on the `verification` line; the criteria text is the subagent's declaration.
+- **Resumption:** progress is derived from the current stage's `jev.jsonl`; `/icm implement` in a new session continues from the next issue.
+- **Closing:** `fechar` generates the stage's loop handover from the records (`implementacao.md` in `05_implement`, `correcoes.md` in `06_review`; it refuses to overwrite a hand-written file) and runs the stage's gate (`implementacao` or `correcoes`) over the `ok` issues. The measured verification is on the `verification` line; the criteria text is the subagent's declaration.
 
 ## How the agent uses it
 

@@ -146,6 +146,14 @@
         }
       ]
     },
+    "correcoes": {
+      "tipo": "cobertura",
+      "etapa": "06_review",
+      "perguntas_de": "implementacao",
+      "artefatos": {
+        "alvo": "docs/_sprints/{sprint}/06_review/handovers/correcoes.md"
+      }
+    },
     "revisao": {
       "tipo": "evidencia",
       "etapa": "06_review",
@@ -253,8 +261,21 @@
       "max_iteracoes": 3,
       "timeout_verificacao_s": 900,
       "limite_saida_chars": 6000,
-      "secao_criterios": "^#{2,3}\\s+Crit[eé]rios de aceite",
-      "secao_dependencias": "^#{2,3}\\s+(Depend[eê]ncias|Bloqueios|Bloqueada por)",
+      "secao_criterios": "^#{2,3}\\s+(Crit[eé]rios de aceite|Acceptance criteria)",
+      "secao_dependencias": "^#{2,3}\\s+(Depend[eê]ncias|Dependencies|Bloqueios|Bloqueada por|Blocked by)",
+      "etapas": {
+        "05_implement": {
+          "issues": "docs/_sprints/{sprint}/04_tickets/handovers/tickets.md",
+          "handover": "implementacao.md",
+          "gate": "implementacao"
+        },
+        "06_review": {
+          "issues": "docs/_sprints/{sprint}/06_review/handovers/revisao.md",
+          "secao_issues": "^#{2,3}\\s+Fix issues",
+          "handover": "correcoes.md",
+          "gate": "correcoes"
+        }
+      },
       "verificacao": [
         { "comando": "mix test", "requer": "mix.exs" }
       ],

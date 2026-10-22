@@ -27,8 +27,20 @@ export const sha = s => createHash("sha256").update(s).digest("hex");
 export const lerRel = rel => (existsSync(join(RAIZ, rel)) ? readFileSync(join(RAIZ, rel), "utf8") : null);
 export const caminho = (tpl, sprint) => tpl.replaceAll("{sprint}", sprint);
 
+/**
+ * Loads `jev-gates.json`. A gate with `perguntas_de: "<gate>"` reuses that gate's questions
+ * (`perguntas`, `perguntas_globais`), so each question keeps a single home.
+ */
 export function carregarConfig() {
-  return JSON.parse(readFileSync(join(RAIZ, "docs/agents/jev-gates.json"), "utf8"));
+  const cfg = JSON.parse(readFileSync(join(RAIZ, "docs/agents/jev-gates.json"), "utf8"));
+  for (const [nome, g] of Object.entries(cfg.gates)) {
+    if (!g.perguntas_de) continue;
+    const base = cfg.gates[g.perguntas_de];
+    if (!base || base.perguntas_de) throw new Error(`gate ${nome}: perguntas_de must name a gate with its own questions`);
+    g.perguntas = base.perguntas;
+    if (base.perguntas_globais) g.perguntas_globais = base.perguntas_globais;
+  }
+  return cfg;
 }
 
 /** Value of `chave:` in the frontmatter; `null` if absent. */

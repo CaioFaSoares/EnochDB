@@ -4,8 +4,10 @@
 // owner, measures what they actually changed, runs the verification, asks Jev
 // whether each acceptance criterion was covered with observed execution, and
 // records the result. The orchestrator calls `passo` until it returns `fim` or `bloqueado`.
-// Progress is derived from `05_implement/handovers/jev.jsonl` (A4): whoever resumes
-// the session continues from where the file stopped.
+// Progress is derived from the current stage's `handovers/jev.jsonl` (A4): whoever resumes
+// the session continues from where the file stopped. The loop runs in the stages listed in
+// `conducao.implementacao.etapas`: `05_implement` takes its issues from `tickets.md`, and
+// `06_review` takes its fix issues from the `## Fix issues` section of `revisao.md`.
 //
 //   const I = await import(`${process.cwd()}/docs/_index/icm-implementar.mjs`);
 //   const p = await I.plano({ sprint });          // read-only: order, criteria, go proposal
@@ -24,6 +26,7 @@ import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, writ
 import { join } from "node:path";
 import {
   RAIZ,
+  caminho,
   carregarConfig,
   classificar,
   cortar,
@@ -72,16 +75,28 @@ export const RELATORIO = {
   },
 };
 
-const rel05 = (sprint, arq) => `docs/_sprints/${sprint}/05_implement/handovers/${arq}`;
+const relEtapa = (sprint, etapa, arq) => `docs/_sprints/${sprint}/${etapa}/handovers/${arq}`;
 const git = (...a) => execFileSync("git", ["-C", RAIZ, ...a], { encoding: "utf8" });
 
-function registros(sprint) {
-  const t = lerRel(rel05(sprint, "jev.jsonl")) ?? "";
+/** The stage the loop runs in now, and where its issues come from; `falha` when the current stage has no loop. */
+function etapaDoLoop(sprint, cfgI) {
+  const fatos = fatosDoSprint(sprint);
+  const atual = etapaAtual(fatos);
+  const fonte = atual ? cfgI.etapas[atual.nome] : null;
+  if (!fonte) {
+    const validas = Object.keys(cfgI.etapas).join(", ");
+    return { fatos, falha: `the current step is ${atual?.nome ?? "none"}; the loop only runs in ${validas} (the previous stages must be closed or not applicable)` };
+  }
+  return { fatos, etapa: atual.nome, fonte };
+}
+
+function registros(sprint, etapa) {
+  const t = lerRel(relEtapa(sprint, etapa, "jev.jsonl")) ?? "";
   return t.split("\n").filter(Boolean).map(l => JSON.parse(l));
 }
 
-function anexar(sprint, obj) {
-  appendFileSync(join(RAIZ, rel05(sprint, "jev.jsonl")), `${JSON.stringify({ em: new Date().toISOString(), ...obj })}\n`);
+function anexar(sprint, etapa, obj) {
+  appendFileSync(join(RAIZ, relEtapa(sprint, etapa, "jev.jsonl")), `${JSON.stringify({ em: new Date().toISOString(), ...obj })}\n`);
 }
 
 function secao(corpo, reTitulo) {
@@ -131,13 +146,15 @@ function estadoDe(regs, numero, reabrir = []) {
   return { estado, iteracoes: ultima.iteracao, ultima };
 }
 
-function carregarIssues(sprint, numerosArg) {
+function carregarIssues(sprint, numerosArg, fonte) {
   let numeros = numerosArg;
   if (!numeros) {
-    const t = lerRel(`docs/_sprints/${sprint}/04_tickets/handovers/tickets.md`);
-    if (t === null) return { falha: "no 04_tickets/handovers/tickets.md: the sprint's issue list is the `#N` cited in it (or pass `issues`)" };
-    numeros = [...new Set([...t.matchAll(/(?<![\w/])#(\d+)\b/g)].map(m => Number(m[1])))];
-    if (numeros.length === 0) return { falha: "tickets.md cites no issue as `#N`; record the number of each published issue" };
+    const rel = caminho(fonte.issues, sprint);
+    const t = lerRel(rel);
+    if (t === null) return { falha: `no ${rel}: the stage's issue list is the \`#N\` cited in it (or pass \`issues\`)` };
+    const trecho = fonte.secao_issues ? secao(t, fonte.secao_issues) : t;
+    numeros = [...new Set([...trecho.matchAll(/(?<![\w/])#(\d+)\b/g)].map(m => Number(m[1])))];
+    if (numeros.length === 0) return { falha: `${rel} cites no issue as \`#N\`${fonte.secao_issues ? ` in the section /${fonte.secao_issues}/` : ""}; record the number of each issue the loop must run` };
   }
   let todas;
   try {
@@ -162,20 +179,20 @@ function carregarIssues(sprint, numerosArg) {
 export async function plano({ sprint, issues: numerosArg, reabrir = [] }) {
   const cfg = carregarConfig();
   const cfgI = cfg.conducao.implementacao;
-  const p = { sprint, bloqueios: [], issues: [], proxima: null, go: null, max_iteracoes: cfgI.max_iteracoes };
-  const fatos = fatosDoSprint(sprint);
-  const atual = etapaAtual(fatos);
-  if (fatos.falhas.length) p.bloqueios.push(...fatos.falhas);
-  if (!atual || atual.nome !== "05_implement") {
-    p.bloqueios.push(`the current step is ${atual?.nome ?? "none"}; the loop only runs in 05_implement (04_tickets must be closed or not applicable)`);
+  const p = { sprint, etapa: null, bloqueios: [], issues: [], proxima: null, go: null, max_iteracoes: cfgI.max_iteracoes };
+  const loop = etapaDoLoop(sprint, cfgI);
+  if (loop.fatos.falhas.length) p.bloqueios.push(...loop.fatos.falhas);
+  if (loop.falha) {
+    p.bloqueios.push(loop.falha);
     return p;
   }
-  const carregadas = carregarIssues(sprint, numerosArg);
+  p.etapa = loop.etapa;
+  const carregadas = carregarIssues(sprint, numerosArg, loop.fonte);
   if (carregadas.falha) {
     p.bloqueios.push(carregadas.falha);
     return p;
   }
-  const regs = registros(sprint);
+  const regs = registros(sprint, p.etapa);
   p.go = [...regs].reverse().find(r => r.tipo === "implementacao_go") ?? null;
   const noSprint = new Set(carregadas.numeros);
   const itens = carregadas.numeros.map(n => {
@@ -248,6 +265,8 @@ export async function plano({ sprint, issues: numerosArg, reabrir = [] }) {
 /** Records the owner's go: one role and one path owner per issue. Only after the owner confirms. */
 export function registrarGo({ sprint, itens, max_iteracoes }) {
   const cfgI = carregarConfig().conducao.implementacao;
+  const loop = etapaDoLoop(sprint, cfgI);
+  if (loop.falha) throw new Error(loop.falha);
   if (!itens?.length) throw new Error("go with no items");
   const vistos = new Set();
   for (const it of itens) {
@@ -261,7 +280,7 @@ export function registrarGo({ sprint, itens, max_iteracoes }) {
     }
   }
   const max = max_iteracoes ?? cfgI.max_iteracoes;
-  anexar(sprint, { tipo: "implementacao_go", itens, max_iteracoes: max });
+  anexar(sprint, loop.etapa, { tipo: "implementacao_go", itens, max_iteracoes: max });
   return { itens: itens.length, max_iteracoes: max };
 }
 
@@ -314,7 +333,7 @@ function briefing(p, issue, feedback, cfgI, pista) {
   const caminhos = issue.caminhos.length ? issue.caminhos.map(c => `\`${c}\``).join(", ") : "none cited";
   const verifs = cfgI.verificacao.map(v => `\`${v.comando}\``).join(", ");
   const partes = [
-    contextoCompartilhado(p.sprint, "05_implement"),
+    contextoCompartilhado(p.sprint, p.etapa),
     "",
     "# Target",
     `Issue #${issue.numero}: ${issue.titulo}. Read the body with \`gh issue view ${issue.numero}\` (cwd at the repository root); it was not copied here. The acceptance criteria section has ${issue.criterios.length} item(s).`,
@@ -398,7 +417,7 @@ export async function passo(kernel, { sprint, issues, reabrir = [] }) {
   const iteracao = issue.iteracoes + 1;
   if (issue.estado === "reaberta") {
     if (iteracao > max) return { acao: "bloqueado", motivos: [`#${issue.numero} reopened beyond the limit of ${max} iteration(s)`] };
-    anexar(sprint, { tipo: "implementacao_reabertura", issue: issue.numero, do_recibo: issue.reaberta?.recibo ?? null, origem: issue.origem, ato_do_dono: true });
+    anexar(sprint, p.etapa, { tipo: "implementacao_reabertura", issue: issue.numero, do_recibo: issue.reaberta?.recibo ?? null, origem: issue.origem, ato_do_dono: true });
   }
   const feedback =
     issue.ultima?.veredito === "reiterar"
@@ -467,7 +486,7 @@ export async function passo(kernel, { sprint, issues, reabrir = [] }) {
   if (!bloqueada) {
     if (alterados.length === 0 && iteracao === 1) reiterar.push("no file was changed");
     for (const v of verificacao) if (v.estado === "executado" && v.codigo !== 0) reiterar.push(`\`${v.comando}\` failed (code ${v.codigo})`);
-    const anteriores = registros(sprint).filter(r => r.tipo === "implementacao_iteracao" && r.issue === issue.numero).flatMap(r => r.arquivos);
+    const anteriores = registros(sprint, p.etapa).filter(r => r.tipo === "implementacao_iteracao" && r.issue === issue.numero).flatMap(r => r.arquivos);
     julgamento = await avaliar(kernel, cfg, issue, relatorio, verificacao, [...new Set([...anteriores, ...alterados])].sort());
     if (julgamento.falhas.length) {
       motivos.push(...julgamento.falhas);
@@ -484,7 +503,7 @@ export async function passo(kernel, { sprint, issues, reabrir = [] }) {
   }
   const feedbackProx = veredito === "reiterar" ? feedbackDe(issue, julgamento.achados, verificacao, reiterar) : null;
   const recibo = sha(JSON.stringify({ sprint, issue: issue.numero, iteracao, relatorio, verificacao, alterados, modelo: cfg.modelo })).slice(0, 16);
-  anexar(sprint, {
+  anexar(sprint, p.etapa, {
     tipo: "implementacao_iteracao",
     issue: issue.numero,
     iteracao,
@@ -516,7 +535,7 @@ function renderizar(p, regs, cfg) {
   const l = [
     "---",
     `sprint: ${p.sprint}`,
-    "step: 05_implement",
+    `step: ${p.etapa}`,
     "---",
     "",
     MARCA,
@@ -547,20 +566,21 @@ function renderizar(p, regs, cfg) {
   return l.join("\n");
 }
 
-/** When there is no issue left to run: writes `implementacao.md` (derived from the records) and runs the gate. */
+/** When there is no issue left to run: writes the stage's loop handover (derived from the records) and runs its gate. */
 export async function fechar(kernel, { sprint, issues }) {
   const cfg = carregarConfig();
   const p = await plano({ sprint, issues });
   if (p.bloqueios.length) return { acao: "bloqueado", motivos: p.bloqueios };
   if (p.proxima) return { acao: "bloqueado", motivos: [`there is still an issue to run: #${p.proxima.numero}`] };
-  const rel = rel05(sprint, "implementacao.md");
+  const fonte = cfg.conducao.implementacao.etapas[p.etapa];
+  const rel = relEtapa(sprint, p.etapa, fonte.handover);
   const existente = lerRel(rel);
   if (existente !== null && !existente.includes(MARCA)) return { acao: "bloqueado", motivos: [`${rel} exists and was not generated by this loop; I will not overwrite`] };
-  writeFileSync(join(RAIZ, rel), renderizar(p, registros(sprint), cfg));
+  writeFileSync(join(RAIZ, rel), renderizar(p, registros(sprint, p.etapa), cfg));
   const itens = p.issues.filter(i => i.estado === "ok").flatMap(i => i.criterios.map((c, k) => ({ id: `#${i.numero}.${k + 1}`, texto: c })));
   if (itens.length === 0) return { acao: "fechado", arquivo: rel, gate: "gate skipped: no ok issue to judge", veredito: "bloqueado", recibo: null };
-  const r = await rodar(kernel, "implementacao", { sprint, itens });
-  if (!r.falhas.length) registrar(r, { etapa: "05_implement" });
+  const r = await rodar(kernel, fonte.gate, { sprint, itens });
+  if (!r.falhas.length) registrar(r, { etapa: p.etapa });
   return { acao: "fechado", arquivo: rel, gate: textoGate(r), veredito: r.veredito, recibo: r.recibo };
 }
 
